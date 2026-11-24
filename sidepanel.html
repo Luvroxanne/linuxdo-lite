@@ -155,11 +155,18 @@
     <details>
       <summary>AI 总结</summary>
       <div class="field">
-        <div class="field-head"><span class="field-label">接口地址</span></div>
+        <div class="field-head"><span class="field-label">总结风格</span></div>
+        <select id="set-aiStyle" class="input">
+          <option value="brief">速读卡：结论 + 要点（推荐）</option>
+          <option value="deep">深度解读：额外给关键细节</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-head"><span class="field-label">接口地址</span><button type="button" class="field-action" id="set-ai-preset-deepseek">填入 DeepSeek</button></div>
         <input id="set-aiBaseUrl" class="input" type="text" placeholder="https://api.openai.com/v1">
       </div>
       <div class="field">
-        <div class="field-head"><span class="field-label">模型</span></div>
+        <div class="field-head"><span class="field-label">模型</span><button type="button" class="field-action" id="set-ai-preset-openai">填入 OpenAI</button></div>
         <input id="set-aiModel" class="input" type="text" placeholder="gpt-4o-mini">
       </div>
       <div class="field">
@@ -167,14 +174,14 @@
         <input id="set-aiKey" class="input" type="password" placeholder="sk-...">
       </div>
       <select id="set-aiProvider" hidden><option value="openai">openai</option></select>
-      <div class="btns"><button id="set-test-ai" class="primary">测试连接</button></div>
+      <div class="btns"><button id="set-test-ai" class="primary">测试连接</button><button id="set-ai-clear-cache">清除总结缓存</button></div>
     </details>
 
     <details open>
       <summary>版本与更新</summary>
       <div class="field-head" style="margin-top:2px">
         <span class="field-label">当前版本</span>
-        <span id="ext-cur-ver" style="font-size:12px;font-weight:600;color:var(--accent)">v1.6.15</span>
+        <span id="ext-cur-ver" style="font-size:12px;font-weight:600;color:var(--accent)">v1.7.0</span>
       </div>
       <div class="btns" style="margin-top:6px">
         <button id="ext-check-update" class="primary">检查更新</button>

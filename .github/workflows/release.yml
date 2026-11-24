@@ -24,14 +24,16 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Run automated tests
-        run: node tests/update-check.test.js
+        run: |
+          node tests/update-check.test.js
+          node tests/ai-summary.test.js
 
       - name: Package Chrome extension zip
         run: |
           mkdir -p build
           zip -r -9 build/linuxdo-lite.zip \
             manifest.json background.js content.js content.css \
-            popup.html popup.css popup.js sidepanel.html \
+            popup.html popup.css popup.js sidepanel.html ai-summary.js \
             same-origin-fetch.js upstream-loader.js README.md \
             install.bat install.ps1 \
             icons/ upstream/

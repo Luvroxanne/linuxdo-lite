@@ -22,6 +22,7 @@ function createBgSandbox(mockFetch, currentVersion) {
         getManifest: () => ({ version: currentVersion }),
         onInstalled: { addListener: () => {} },
         onStartup: { addListener: () => {} },
+        onConnect: { addListener: () => {} },
         onMessage: { addListener: fn => { msgHandler = fn; } }
       },
       storage: {

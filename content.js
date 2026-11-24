@@ -5,7 +5,8 @@ const DEFAULTS = {
   hideSignature: true, hideImages: false, onlyOP: false, privacy: false,
   blockUsers: '', blockKeywords: '', quickReplies: '感谢分享！\n学习了，收藏了\n+1，支持一下',
   customCSS: '', bossKey: true, openSidebarOnClick: true, floatSidebar: false, floatOpen: false,
-  upstreamIM: false, upstreamSkin: 'dingtalk', upstreamVersion: '1.3.7', hideRead: true, readBoost: true
+  upstreamIM: false, upstreamSkin: 'dingtalk', upstreamVersion: '1.3.7', hideRead: true, readBoost: true, autoCF: true,
+  aiStyle: 'brief'
 };
 // 已读：内存中去重，同一帖子不重复读写 storage，最多保留最近 300 条以最小化内存占用
 const markedReadSession = new Set();
@@ -356,8 +357,9 @@ function toggleMoyu() {
 }
 document.addEventListener('keydown', e => {
   if (S.bossKey && e.altKey && (e.key === 'm' || e.key === 'M' || e.key === 'ß')) { e.preventDefault(); toggleMoyu(); }
+  if (e.altKey && (e.key === 's' || e.key === 'S') && /^\/t\/[^/]+\/\d+/.test(location.pathname)) { e.preventDefault(); toggleAiPanel(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
-  if (e.key === 'Escape') { const ov = document.getElementById('ld-search-overlay'); if (ov) ov.remove(); }
+  if (e.key === 'Escape') { const ov = document.getElementById('ld-search-overlay'); if (ov) ov.remove(); if (aiPanel && !aiPanel.overlay.hidden) closeAiPanel(); }
 });
 
 // --- 页内悬浮侧栏：进 linux.do 就自动出现，记住开/合状态，不用点图标 ---
@@ -439,6 +441,265 @@ async function handleLevelData(sendResponse) {
     sendResponse({ ok: true, data: { username: me, trust_level: (uJ.user && uJ.user.trust_level) || 0, created_at: uJ.user && uJ.user.created_at, gamification_score: (uJ.user && uJ.user.gamification_score) || 0, summary: sJ.user_summary || {} } });
   } catch (e) { sendResponse({ ok: false, error: String(e.message || e) }); }
 }
+
+// ---------- AI 速读：论坛页内直接出速读卡 ----------
+// 优先用 /t/{id}.json 拿完整首屏 20 楼（含楼层、作者、点赞），DOM 兜底；
+// 侧边栏和页内面板共用同一套提取逻辑，避免两边拿到的内容不一致。
+function htmlToPlain(html) {
+  try {
+    const doc = new DOMParser().parseFromString('<div id="ld-ai-root">' + String(html || '') + '</div>', 'text/html');
+    const root = doc.getElementById('ld-ai-root');
+    root.querySelectorAll('aside.quote, .quote, script, style, svg, .post-menu-area, .actions, .meta').forEach(el => el.remove());
+    root.querySelectorAll('img').forEach(img => {
+      const alt = (img.getAttribute('alt') || '').trim();
+      if (alt) img.replaceWith(doc.createTextNode('[' + alt + ']'));
+      else img.remove();
+    });
+    root.querySelectorAll('br').forEach(br => br.replaceWith(doc.createTextNode('\n')));
+    root.querySelectorAll('p, li, h1, h2, h3, h4, h5, pre, blockquote, div, tr').forEach(el => el.append(doc.createTextNode('\n')));
+    return (root.textContent || '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  } catch (e) {
+    return String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+async function collectTopicPayload() {
+  const m = location.pathname.match(/\/t\/[^/]+\/(\d+)/);
+  if (!m) return null;
+  const topicId = m[1];
+  const payload = { topicId: topicId, title: '', meta: '', text: '', posts: 0, chars: 0 };
+
+  try {
+    const r = await fetch('/t/' + topicId + '.json', { credentials: 'include', headers: { Accept: 'application/json' } });
+    if (r.ok) {
+      const j = await r.json();
+      const posts = (j.post_stream && j.post_stream.posts) || [];
+      payload.title = j.title || '';
+      payload.posts = j.posts_count || posts.length;
+      payload.meta = '回复 ' + (j.posts_count || posts.length) +
+        ' · 浏览 ' + (j.views || 0) +
+        ' · 参与 ' + (j.participant_count || 0) + ' 人' +
+        (j.created_at ? ' · ' + String(j.created_at).slice(0, 10) : '');
+      payload.text = posts.map(p => {
+        const floor = p.post_number || '';
+        const like = p.like_count ? ' · 赞' + p.like_count : '';
+        return '【' + floor + '楼' + (floor === 1 ? ' · 楼主' : '') + '】' + (p.username || '匿名') + like + '\n' + htmlToPlain(p.cooked || '');
+      }).filter(x => x.trim()).join('\n\n---\n\n');
+    }
+  } catch (e) {}
+
+  if (!payload.text) {
+    const titleEl = document.querySelector('#topic-title h1, .fancy-title, h1');
+    payload.title = ((titleEl && titleEl.textContent) || document.title || '').trim();
+    const seen = new Set();
+    const chunks = [];
+    document.querySelectorAll('article[data-post-id], .topic-post').forEach((node, idx) => {
+      const cooked = node.querySelector('.cooked, .post-body');
+      if (!cooked) return;
+      const postId = node.getAttribute('data-post-id') || '';
+      if (postId) { if (seen.has(postId)) return; seen.add(postId); }
+      const nameEl = node.querySelector('.creator .username, .username, [itemprop="name"]');
+      const name = ((nameEl && nameEl.textContent) || '匿名').trim();
+      const floor = (node.id || '').match(/post_(\d+)/);
+      const clone = cooked.cloneNode(true);
+      clone.querySelectorAll('aside.quote, .quote, script, style, svg').forEach(el => el.remove());
+      const text = (clone.innerText || clone.textContent || '').trim();
+      if (!text) return;
+      chunks.push('【' + (floor ? floor[1] : idx + 1) + '楼' + (floor && floor[1] === '1' ? ' · 楼主' : '') + '】' + name + '\n' + text);
+    });
+    payload.text = chunks.join('\n\n---\n\n');
+    payload.posts = chunks.length;
+  }
+
+  payload.chars = payload.text.length;
+  if (!payload.text.trim()) return null;
+  if (!payload.meta) payload.meta = '共 ' + payload.posts + ' 楼 · ' + payload.chars + ' 字';
+  return payload;
+}
+
+let aiPanel = null;
+let aiJob = null;
+let aiRawText = '';
+let aiRunning = false;
+let aiRenderTimer = null;
+
+function renderAiPanelBody(ui) {
+  ui.body.innerHTML = LDAI.renderMarkdown(aiRawText) || '<div class="ld-ai-empty">正在生成…</div>';
+}
+
+function scheduleAiRender(ui) {
+  if (aiRenderTimer) return;
+  aiRenderTimer = setTimeout(() => {
+    aiRenderTimer = null;
+    renderAiPanelBody(ui);
+    ui.body.scrollTop = ui.body.scrollHeight;
+  }, 80);
+}
+
+function closeAiPanel() {
+  if (!aiPanel) return;
+  if (aiJob) { aiJob.cancel(); aiJob = null; }
+  aiRunning = false;
+  aiPanel.overlay.hidden = true;
+}
+
+function ensureAiPanel() {
+  if (aiPanel) return aiPanel;
+  const overlay = document.createElement('div');
+  overlay.id = 'ld-ai-overlay';
+  overlay.hidden = true;
+  overlay.innerHTML =
+    '<div id="ld-ai-panel" role="dialog" aria-modal="true" aria-label="AI 速读">' +
+      '<div class="ld-ai-head">' +
+        '<div class="ld-ai-heading"><span class="ld-ai-badge">AI 速读</span><span class="ld-ai-topic"></span></div>' +
+        '<div class="ld-ai-tools">' +
+          '<button type="button" class="ld-ai-copy" disabled>复制</button>' +
+          '<button type="button" class="ld-ai-retry" disabled>重新生成</button>' +
+          '<button type="button" class="ld-ai-stop" hidden>停止</button>' +
+          '<button type="button" class="ld-ai-x" aria-label="关闭">×</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ld-ai-meta"></div>' +
+      '<div class="ld-ai-body"></div>' +
+      '<div class="ld-ai-stage"></div>' +
+      '<div class="ld-ai-foot">Alt+S 打开 · 只读不发帖 · 结果缓存 7 天</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const q = s => overlay.querySelector(s);
+  const ui = {
+    overlay: overlay,
+    topic: q('.ld-ai-topic'),
+    meta: q('.ld-ai-meta'),
+    body: q('.ld-ai-body'),
+    stage: q('.ld-ai-stage'),
+    copy: q('.ld-ai-copy'),
+    retry: q('.ld-ai-retry'),
+    stop: q('.ld-ai-stop')
+  };
+  q('.ld-ai-x').onclick = closeAiPanel;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeAiPanel(); });
+  ui.copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(aiRawText);
+      ui.copy.textContent = '已复制';
+      setTimeout(() => { ui.copy.textContent = '复制'; }, 1200);
+    } catch (e) {}
+  };
+  ui.retry.onclick = () => { if (!aiRunning) runAiPanel(true); };
+  ui.stop.onclick = () => { if (aiJob) { aiJob.cancel(); aiJob = null; } };
+  aiPanel = ui;
+  return ui;
+}
+
+async function runAiPanel(force) {
+  const ui = ensureAiPanel();
+  aiRunning = true;
+  aiRawText = '';
+  ui.copy.disabled = true;
+  ui.retry.disabled = true;
+  ui.stop.hidden = false;
+  ui.meta.textContent = '';
+  ui.stage.textContent = '正在读取帖子…';
+  ui.body.innerHTML = '<div class="ld-ai-skeleton"><i></i><i></i><i></i><i></i></div>';
+
+  const payload = await collectTopicPayload();
+  if (!payload) {
+    aiRunning = false;
+    ui.stop.hidden = true;
+    ui.retry.disabled = false;
+    ui.stage.textContent = '';
+    ui.body.innerHTML = '<div class="ld-ai-err">这里不是帖子页。先打开一篇帖子，再点 AI 速读。</div>';
+    return;
+  }
+
+  ui.topic.textContent = payload.title || '当前帖子';
+  ui.meta.textContent = payload.meta;
+
+  if (!S.aiKey) {
+    aiRunning = false;
+    ui.stop.hidden = true;
+    ui.retry.disabled = false;
+    ui.stage.textContent = '';
+    ui.body.innerHTML = '<div class="ld-ai-err">还没配置 AI Key。打开侧边栏 → 设置 → AI 总结，填一个 Key 就能用。</div>';
+    return;
+  }
+
+  const started = Date.now();
+  const job = LDAI.summarize({
+    text: payload.text,
+    style: S.aiStyle === 'deep' ? 'deep' : 'brief',
+    title: payload.title,
+    topicKey: 't' + payload.topicId + ':' + payload.posts,
+    force: !!force,
+    onStage: t => { if (t) ui.stage.textContent = t; },
+    onDelta: (d, full) => { aiRawText = full; scheduleAiRender(ui); }
+  });
+  aiJob = job;
+
+  try {
+    const res = await job.promise;
+    aiRawText = res.text || aiRawText;
+    renderAiPanelBody(ui);
+    ui.copy.disabled = false;
+    const meta = res.meta || {};
+    ui.meta.textContent = [
+      payload.meta,
+      res.cached ? '本地缓存' : (meta.model || S.aiModel || ''),
+      res.cached ? '' : ((Date.now() - started) / 1000).toFixed(1) + 's',
+      aiRawText.length + ' 字'
+    ].filter(Boolean).join(' · ');
+  } catch (e) {
+    const msg = String(e.message || e);
+    if (msg === '已停止') { renderAiPanelBody(ui); ui.meta.textContent = '已停止生成'; }
+    else {
+      ui.body.innerHTML = '<div class="ld-ai-err"></div>';
+      ui.body.firstChild.textContent = '总结失败：' + msg;
+    }
+  } finally {
+    aiRunning = false;
+    aiJob = null;
+    ui.stop.hidden = true;
+    ui.retry.disabled = false;
+    ui.stage.textContent = '';
+  }
+}
+
+function openAiPanel(force) {
+  const ui = ensureAiPanel();
+  ui.overlay.hidden = false;
+  if (!aiRunning) runAiPanel(!!force);
+}
+
+function toggleAiPanel() {
+  const ui = ensureAiPanel();
+  if (!ui.overlay.hidden) { closeAiPanel(); return; }
+  ui.overlay.hidden = false;
+  if (!aiRunning) runAiPanel(false);
+}
+
+function ensureAiEntry() {
+  const isTopic = /^\/t\/[^/]+\/\d+/.test(location.pathname);
+  let btn = document.getElementById('ld-ai-btn');
+  if (isTopic) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'ld-ai-btn';
+      btn.type = 'button';
+      btn.innerHTML = '<span class="ld-ai-spark">✦</span><span>AI 速读</span>';
+      btn.title = 'AI 速读这篇帖子（Alt+S）';
+      btn.addEventListener('click', () => openAiPanel(false));
+      document.body.appendChild(btn);
+    }
+    btn.style.display = '';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
 // --- 中转拉 JSON：popup / 侧边栏拉不到时，让页面本身去拉（带完整验证凭证） ---
 
 // --- ReadBoost 自动读帖：原样注入上游 upstream/linuxdo-readboost.user.js (v2.2) ---
@@ -497,15 +758,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } catch (e) {}
     sendResponse({ ok: true }); location.reload(); return true;
   }
-  // AI 总结：把当前帖子页的正文（前 10 楼）交给侧边栏，侧边栏再发给用户自己选的 AI。
-  // 只读不发帖，总结只显示在侧边栏里。
-  if (msg.type === 'get-topic-text') {
-    try {
-      const title = (document.querySelector('h1, .fancy-title') || {}).textContent || document.title;
-      const parts = [...document.querySelectorAll('.cooked, .post-body')].slice(0, 10).map(el => (el.textContent || '').trim()).filter(Boolean);
-      if (!parts.length) { sendResponse({ ok: false, error: '当前页不是帖子页（先打开一个帖子）' }); return true; }
-      sendResponse({ ok: true, text: '标题：' + title.trim() + '\n\n' + parts.join('\n---\n') });
-    } catch (e) { sendResponse({ ok: false, error: String(e.message || e) }); }
+  // AI 速读：把标题、元信息和楼层正文交给侧边栏 / 页内面板，只读不发帖。
+  if (msg.type === 'get-topic-content') {
+    collectTopicPayload().then(payload => {
+      if (!payload) sendResponse({ ok: false, error: '当前页不是帖子页（先打开一个帖子）' });
+      else sendResponse({ ok: true, topicId: payload.topicId, title: payload.title, meta: payload.meta, text: payload.text, posts: payload.posts, chars: payload.chars });
+    }).catch(e => sendResponse({ ok: false, error: String(e.message || e) }));
     return true;
   }
   if (msg.type === 'fetch-via-dom') {
@@ -553,6 +811,7 @@ function runAll() {
     enhancePosts();
     if (S.quickReplies) enhanceComposer();
     ensureButtons();
+    ensureAiEntry();
     applyPrivacy();
     ensureFloatSidebar();
     if (S.theme !== 'dingtalk' && S.theme !== 'feishu') {

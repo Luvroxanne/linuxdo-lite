@@ -135,6 +135,233 @@ async function checkExtensionUpdate() {
   return { ok: true, currentVersion, latestVersion, hasUpdate, downloadUrl, releaseUrl, notes, source };
 }
 
+// ---------- AI 速读 ----------
+// 长帖先分段速读（并发 3 段），再汇总成最终速读卡；最终一步流式返回，边生成边显示。
+// 只在后台调用户自己配置的 OpenAI 兼容接口，Key 不发往任何第三方。
+const AI_MAX_CHARS = 30000;
+const AI_CHUNK_CHARS = 6000;
+const AI_MAX_CHUNKS = 6;
+const AI_CONCURRENCY = 3;
+
+const AI_MAP_SYSTEM = '你在为一篇较长的中文论坛帖做分段速读。把这一段压缩成 4-8 条要点，每条一行，只保留事实、结论、方法、争议和可操作信息；不要寒暄，不要编造。';
+
+function aiSystemPrompt(style) {
+  const parts = [
+    '你是论坛速读助手，把帖子压缩成 30 秒能读完的速读卡。用简体中文，严格按下面的 Markdown 结构输出，不要寒暄、不要复述要求、不要编造内容：',
+    '## 一句话结论',
+    '（不超过 40 字，讲清这篇帖子在说什么、结论是什么）',
+    '## 核心要点',
+    '- 3~6 条，每条不超过 50 字，只保留事实、结论和可操作信息'
+  ];
+  if (style === 'deep') {
+    parts.push('## 关键细节');
+    parts.push('- 3~5 条技术细节、参数、踩坑或成本数据；没有就写“文中未提供”');
+  }
+  parts.push('## 讨论与分歧');
+  parts.push('- 2~4 条评论区有价值的补充、反对意见或纠正；没有就写“评论区无明显分歧”');
+  parts.push('## 值不值得读');
+  parts.push('一句话说明适合谁读、能不能跳过；文中如果有链接、代码、工具或资源，直接点名');
+  return parts.join('\n');
+}
+
+function aiChunk(text, maxChars) {
+  const max = maxChars || AI_CHUNK_CHARS;
+  const paragraphs = String(text || '').split(/\n{2,}/);
+  const chunks = [];
+  let cur = '';
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    if (p.length > max) {
+      if (cur) { chunks.push(cur); cur = ''; }
+      for (let j = 0; j < p.length; j += max) chunks.push(p.slice(j, j + max));
+      continue;
+    }
+    if (cur && cur.length + p.length + 2 > max) { chunks.push(cur); cur = p; }
+    else cur = cur ? cur + '\n\n' + p : p;
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+async function aiConfig() {
+  const s = (await chrome.storage.local.get('ld_settings')).ld_settings || {};
+  if (!s.aiKey) throw new Error('还没配置 AI Key：打开侧边栏 → 设置 → AI 总结，填一个 Key 就行');
+  return {
+    key: s.aiKey,
+    base: String(s.aiBaseUrl || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    model: s.aiModel || 'gpt-4o-mini'
+  };
+}
+
+function aiHttpError(status, body, base) {
+  if (status === 401) return 'API Key 无效或没有权限（401），检查设置里的 Key';
+  if (status === 403) return '接口拒绝访问（403），检查 Key 的模型权限或地区限制';
+  if (status === 404) return '接口地址或模型名不对（404）：' + base;
+  if (status === 429) return '请求太频繁或额度用尽（429），稍后重试或换模型';
+  if (status >= 500) return '服务端错误（' + status + '），稍后重试';
+  return 'HTTP ' + status + '：' + String(body || '').slice(0, 200);
+}
+
+// 同时兼容 SSE 流式与非流式中转：有些反代忽略 stream=true 直接回 JSON。
+async function aiChat(req) {
+  const r = await fetch(req.base + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + req.key },
+    body: JSON.stringify({
+      model: req.model,
+      temperature: typeof req.temperature === 'number' ? req.temperature : 0.25,
+      max_tokens: req.maxTokens || 1200,
+      stream: !!req.stream,
+      messages: req.messages
+    }),
+    signal: req.signal
+  });
+  if (!r.ok) throw new Error(aiHttpError(r.status, await r.text().catch(function () { return ''; }), req.base));
+
+  const ct = String((r.headers && r.headers.get && r.headers.get('content-type')) || '').toLowerCase();
+  if (!req.stream || !r.body || (ct && ct.indexOf('text/event-stream') < 0)) {
+    const j = await r.json();
+    const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+    if (!text.trim()) throw new Error('接口没有返回内容');
+    if (req.onDelta) req.onDelta(text);
+    return { text: text, usage: j.usage || null };
+  }
+
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let full = '';
+  let usage = null;
+  let done = false;
+  while (!done) {
+    const part = await reader.read();
+    if (part.done) break;
+    buf = (buf + dec.decode(part.value, { stream: true })).replace(/\r\n/g, '\n');
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const lines = block.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf('data:') !== 0) continue;
+        const data = lines[i].slice(5).trim();
+        if (data === '[DONE]') { done = true; break; }
+        if (!data) continue;
+        let j;
+        try { j = JSON.parse(data); } catch (e) { continue; }
+        if (j.usage) usage = j.usage;
+        const d = (j.choices && j.choices[0] && ((j.choices[0].delta && j.choices[0].delta.content) || (j.choices[0].message && j.choices[0].message.content))) || '';
+        if (d) { full += d; if (req.onDelta) req.onDelta(d); }
+      }
+      if (done) break;
+    }
+  }
+  if (!full.trim()) throw new Error('接口没有返回内容');
+  return { text: full, usage: usage };
+}
+
+async function aiMapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = [];
+  const n = Math.min(limit, items.length);
+  for (let w = 0; w < n; w++) {
+    workers.push((async function () {
+      while (next < items.length) {
+        const i = next++;
+        results[i] = await fn(items[i], i);
+      }
+    })());
+  }
+  await Promise.all(workers);
+  return results;
+}
+
+async function runAiSummary(opts) {
+  const send = opts.send || function () {};
+  const cfg = await aiConfig();
+  const style = opts.style === 'deep' ? 'deep' : 'brief';
+  const full = String(opts.text || '').slice(0, AI_MAX_CHARS);
+  if (!full.trim()) throw new Error('没拿到帖子正文，确认当前打开的是帖子页');
+
+  const chunks = aiChunk(full, AI_CHUNK_CHARS).slice(0, AI_MAX_CHUNKS);
+  const sys = aiSystemPrompt(style);
+  const titleLine = opts.title ? '标题：' + opts.title + '\n\n' : '';
+  let messages;
+
+  if (chunks.length <= 1) {
+    send({ type: 'stage', text: '正在生成速读卡…' });
+    messages = [
+      { role: 'system', content: sys },
+      { role: 'user', content: titleLine + '正文：\n' + full }
+    ];
+  } else {
+    send({ type: 'stage', text: '长帖分段速读：共 ' + chunks.length + ' 段…' });
+    const partials = await aiMapLimit(chunks, AI_CONCURRENCY, async function (chunk, i) {
+      const part = await aiChat({
+        key: cfg.key,
+        base: cfg.base,
+        model: cfg.model,
+        messages: [
+          { role: 'system', content: AI_MAP_SYSTEM },
+          { role: 'user', content: '第 ' + (i + 1) + '/' + chunks.length + ' 段：\n' + chunk }
+        ],
+        maxTokens: 500,
+        stream: false,
+        signal: opts.signal
+      });
+      send({ type: 'stage', text: '已速读 ' + (i + 1) + '/' + chunks.length + ' 段…' });
+      return part.text.trim();
+    });
+    messages = [
+      { role: 'system', content: sys },
+      {
+        role: 'user',
+        content: titleLine + '以下是长帖按原文顺序分段速读后的要点，请据此汇总成最终速读卡：\n\n' +
+          partials.map(function (p, i) { return '【第' + (i + 1) + '段】\n' + p; }).join('\n\n')
+      }
+    ];
+    send({ type: 'stage', text: '正在汇总成速读卡…' });
+  }
+
+  const started = Date.now();
+  const out = await aiChat({
+    key: cfg.key,
+    base: cfg.base,
+    model: cfg.model,
+    messages: messages,
+    maxTokens: style === 'deep' ? 1600 : 1100,
+    stream: opts.stream !== false,
+    signal: opts.signal,
+    onDelta: function (d) { send({ type: 'delta', text: d }); }
+  });
+  send({ type: 'stage', text: '' });
+  return {
+    text: out.text,
+    meta: { model: cfg.model, style: style, chunks: chunks.length, chars: full.length, ms: Date.now() - started, usage: out.usage }
+  };
+}
+
+// 流式通道：内容页 / 侧边栏 connect 进来，后台边拉模型边回传 delta。
+chrome.runtime.onConnect.addListener(function (port) {
+  if (port.name !== 'ld-ai-summarize') return;
+  let controller = null;
+  port.onDisconnect.addListener(function () {
+    if (controller) { try { controller.abort(); } catch (e) {} }
+  });
+  port.onMessage.addListener(function (msg) {
+    if (!msg || msg.type !== 'summarize') return;
+    controller = new AbortController();
+    const send = function (m) { try { port.postMessage(m); } catch (e) {} };
+    runAiSummary({ text: msg.text, style: msg.style, title: msg.title, signal: controller.signal, send: send, stream: true })
+      .then(function (res) { send({ type: 'done', meta: res.meta }); })
+      .catch(function (e) {
+        if (controller.signal.aborted) send({ type: 'error', error: '已停止' });
+        else send({ type: 'error', error: String(e.message || e) });
+      });
+  });
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'check-ext-update') { checkExtensionUpdate().then(sendResponse).catch(e => sendResponse({ ok: false, error: String(e.message || e) })); return true; }
   if (msg.type === 'auto-pass-cf') { runAutoPassCF(msg.kind).then(sendResponse); return true; }
@@ -204,19 +431,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })();
     return true;
   }
+  // 非流式兜底：流式通道不可用（扩展刚更新、连接被中断）时仍能出结果。
   if (msg.type === 'ai-summarize') {
     (async () => {
       try {
-        const s = (await chrome.storage.local.get('ld_settings')).ld_settings || {};
-        if (!s.aiKey) throw new Error('先在设置里填 key');
-        const base = (s.aiBaseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
-        const model = s.aiModel || 'gpt-4o-mini';
-        const text = String(msg.text || '').slice(0, 8000);
-        if (!text.trim()) throw new Error('没拿到帖子正文（先打开一个帖子页）');
-        const r = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.aiKey }, body: JSON.stringify({ model, temperature: 0.3, messages: [{ role: 'system', content: '用中文简要总结以下论坛帖子：先给一句话结论，再列 3-5 条要点。只总结，不发帖。' }, { role: 'user', content: text }] }) });
-        if (!r.ok) throw new Error('HTTP ' + r.status + '：' + (await r.text()).slice(0, 200));
-        const j = await r.json();
-        sendResponse({ ok: true, summary: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '' });
+        const res = await runAiSummary({ text: msg.text, style: msg.style, title: msg.title, stream: false });
+        sendResponse({ ok: true, summary: res.text, meta: res.meta });
       } catch (e) { sendResponse({ ok: false, error: String(e.message || e) }); }
     })();
     return true;

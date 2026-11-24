@@ -9,7 +9,7 @@ const DEFAULTS = {
   blockUsers: '', blockKeywords: '', quickReplies: '感谢分享！\n学习了，收藏了\n+1，支持一下',
   customCSS: '', bossKey: true, openSidebarOnClick: true, floatSidebar: false, floatOpen: false,
   upstreamIM: false, upstreamSkin: 'dingtalk', upstreamVersion: '1.3.7', hideRead: true, readBoost: true, autoCF: true,
-  aiProvider: 'openai', aiKey: '', aiModel: 'gpt-4o-mini', aiBaseUrl: 'https://api.openai.com/v1',
+  aiProvider: 'openai', aiKey: '', aiModel: 'gpt-4o-mini', aiBaseUrl: 'https://api.openai.com/v1', aiStyle: 'brief',
   ldcLinks: 'LDC 余额|https://credit.linux.do\nLD士多|https://ldcstore.com/\nHUB 站|https://hub.linux.do\n排行榜|https://linux.do/leaderboard/1'
 };
 let settings = { ...DEFAULTS };
@@ -463,7 +463,7 @@ async function loadSettings() {
   chk('set-hideImages', settings.hideImages); chk('set-bossKey', settings.bossKey); chk('set-privacy', settings.privacy);
   chk('set-openSidebarOnClick', settings.openSidebarOnClick !== false); chk('set-floatSidebar', !!settings.floatSidebar); chk('set-hideRead', settings.hideRead !== false); chk('set-readBoost', settings.readBoost !== false); chk('set-autoCF', settings.autoCF !== false);
   set('set-blockUsers', settings.blockUsers); set('set-blockKeywords', settings.blockKeywords);
-  set('set-aiProvider', settings.aiProvider || 'openai'); set('set-aiKey', settings.aiKey || ''); set('set-aiModel', settings.aiModel || 'gpt-4o-mini'); set('set-aiBaseUrl', settings.aiBaseUrl || 'https://api.openai.com/v1');
+  set('set-aiProvider', settings.aiProvider || 'openai'); set('set-aiKey', settings.aiKey || ''); set('set-aiModel', settings.aiModel || 'gpt-4o-mini'); set('set-aiBaseUrl', settings.aiBaseUrl || 'https://api.openai.com/v1'); set('set-aiStyle', settings.aiStyle || 'brief');
   set('set-ldcLinks', settings.ldcLinks || '');
   set('set-quickReplies', settings.quickReplies); set('set-customCSS', settings.customCSS);
   document.body.classList.toggle('theme-dark', settings.theme === 'dark');
@@ -487,7 +487,7 @@ async function saveSettings() {
     showFloor: checked('set-showFloor'), hideSignature: checked('set-hideSignature'), hideImages: checked('set-hideImages'),
     bossKey: checked('set-bossKey'), privacy: checked('set-privacy'), openSidebarOnClick: checked('set-openSidebarOnClick'), floatSidebar: checked('set-floatSidebar'), floatOpen: settings.floatOpen !== false, hideRead: checked('set-hideRead'), readBoost: checked('set-readBoost'), autoCF: checked('set-autoCF'), blockUsers: val('set-blockUsers'), blockKeywords: val('set-blockKeywords'),
     quickReplies: val('set-quickReplies'), customCSS: val('set-customCSS'), onlyOP: settings.onlyOP,
-    aiProvider: val('set-aiProvider') || 'openai', aiKey: val('set-aiKey') || '', aiModel: val('set-aiModel') || 'gpt-4o-mini', aiBaseUrl: val('set-aiBaseUrl') || 'https://api.openai.com/v1',
+    aiProvider: val('set-aiProvider') || 'openai', aiKey: val('set-aiKey') || '', aiModel: val('set-aiModel') || 'gpt-4o-mini', aiBaseUrl: val('set-aiBaseUrl') || 'https://api.openai.com/v1', aiStyle: val('set-aiStyle') || 'brief',
     ldcLinks: val('set-ldcLinks') || ''
   };
   await chrome.storage.local.set({ ld_settings: settings });
@@ -650,7 +650,7 @@ function renderLdcLinkRows() {
 function bindSettings() {
   let inputSaveTimer = null;
   const saveOnInput = () => { clearTimeout(inputSaveTimer); inputSaveTimer = setTimeout(saveSettings, 250); };
-  ['set-theme', 'set-newTab', 'set-showTime', 'set-showFloor', 'set-hideSignature', 'set-hideImages', 'set-bossKey', 'set-privacy', 'set-openSidebarOnClick', 'set-floatSidebar', 'set-hideRead', 'set-readBoost', 'set-autoCF', 'set-aiProvider', 'set-aiKey', 'set-aiModel', 'set-aiBaseUrl', 'set-ldcLinks',
+  ['set-theme', 'set-newTab', 'set-showTime', 'set-showFloor', 'set-hideSignature', 'set-hideImages', 'set-bossKey', 'set-privacy', 'set-openSidebarOnClick', 'set-floatSidebar', 'set-hideRead', 'set-readBoost', 'set-autoCF', 'set-aiProvider', 'set-aiKey', 'set-aiModel', 'set-aiBaseUrl', 'set-aiStyle', 'set-ldcLinks',
    'set-blockUsers', 'set-blockKeywords', 'set-quickReplies', 'set-customCSS'].forEach(id => {
     const el = $(id);
     if (!el) return;
@@ -780,7 +780,7 @@ function bindSettings() {
     await saveSettings();
     renderLdcLinkRows(); showToast('标题已补全');
   };
-  // AI 总结：API 入口。key 只存本地，点“测试”会调一次 /models 验证 key 是否有效。
+  // AI 速读：key 只存本地，点“测试”会调一次 /models 验证 key 是否有效。
   const aiTest = $('set-test-ai');
   if (aiTest) aiTest.onclick = async () => {
     await saveSettings();
@@ -788,28 +788,166 @@ function bindSettings() {
     try { const r = await chrome.runtime.sendMessage({ type: 'ai-test' }); showToast((r && r.ok) ? 'API 连接正常' : '测试失败：' + (r && r.error || '未知')); }
     catch (e) { showToast('测试失败：' + (e.message || e)); }
   };
-  // 帖子页的 AI 总结按钮：先打开一个帖子页，再点它，总结只显示在侧边栏里，不发帖。
-  const aiBtn = $('ai-summary-btn'), aiOut = $('ai-summary-result');
-  function renderAiBox(text) {
-    if (!aiOut) return;
-    aiOut.hidden = false;
-    aiOut.innerHTML = '<div class="ai-head"><span>AI 总结</span><button type="button" class="ai-close" title="关闭">×</button></div><div class="ai-body"></div>';
-    aiOut.querySelector('.ai-body').textContent = text;
-    aiOut.querySelector('.ai-close').onclick = () => { aiOut.hidden = true; };
-  }
-  if (aiBtn) aiBtn.onclick = async () => {
-    if (!settings.aiKey) { renderAiBox('请先在设置 → AI 总结里填写 API Key。'); return; }
-    renderAiBox('正在总结当前帖子…');
-    try {
-      const tabs = await chrome.tabs.query({ url: 'https://linux.do/*' });
-      const activeFirst = [...tabs].sort((a, b) => Number(!!b.active) - Number(!!a.active));
-      let text = null;
-      for (const tab of activeFirst) { try { const r = await chrome.tabs.sendMessage(tab.id, { type: 'get-topic-text' }); if (r && r.ok) { text = r.text; break; } } catch (e) {} }
-      if (!text) throw new Error('请先打开一个帖子页');
-      const r = await chrome.runtime.sendMessage({ type: 'ai-summarize', text });
-      renderAiBox((r && r.ok) ? (r.summary || '未返回内容') : '总结失败：' + (r && r.error || '未知'));
-    } catch (e) { renderAiBox('总结失败：' + (e.message || e)); }
+  const aiPresetDs = $('set-ai-preset-deepseek');
+  if (aiPresetDs) aiPresetDs.onclick = async () => {
+    if ($('set-aiBaseUrl')) $('set-aiBaseUrl').value = 'https://api.deepseek.com/v1';
+    if ($('set-aiModel')) $('set-aiModel').value = 'deepseek-chat';
+    await saveSettings();
+    showToast('已填入 DeepSeek 地址与模型，别忘了填 Key');
   };
+  const aiPresetOa = $('set-ai-preset-openai');
+  if (aiPresetOa) aiPresetOa.onclick = async () => {
+    if ($('set-aiBaseUrl')) $('set-aiBaseUrl').value = 'https://api.openai.com/v1';
+    if ($('set-aiModel')) $('set-aiModel').value = 'gpt-4o-mini';
+    await saveSettings();
+    showToast('已填入 OpenAI 地址与模型，别忘了填 Key');
+  };
+  const aiClear = $('set-ai-clear-cache');
+  if (aiClear) aiClear.onclick = async () => { await LDAI.clearCache(); showToast('总结缓存已清除'); };
+
+  // 帖子页的 AI 速读按钮：找到当前帖子标签页，提炼全文（含评论区），流式输出速读卡。
+  const aiBtn = $('ai-summary-btn'), aiOut = $('ai-summary-result');
+  let aiUi = null;
+  let aiJob = null;
+  let aiRaw = '';
+  let aiRunning = false;
+  let aiRenderTimer = null;
+
+  function renderAiCardBody() {
+    if (!aiUi) return;
+    aiUi.body.innerHTML = LDAI.renderMarkdown(aiRaw) || '<div class="ai-empty">正在生成…</div>';
+  }
+  function scheduleAiCardRender() {
+    if (aiRenderTimer) return;
+    aiRenderTimer = setTimeout(() => {
+      aiRenderTimer = null;
+      renderAiCardBody();
+      if (aiUi) aiUi.body.scrollTop = aiUi.body.scrollHeight;
+    }, 80);
+  }
+  function ensureAiCard() {
+    if (!aiOut) return null;
+    if (aiUi) return aiUi;
+    aiOut.hidden = false;
+    aiOut.innerHTML =
+      '<div class="ai-card">' +
+        '<div class="ai-head">' +
+          '<div class="ai-heading"><span class="ai-badge">AI 速读</span><span class="ai-topic">当前帖子</span></div>' +
+          '<div class="ai-acts">' +
+            '<button type="button" class="ai-act ai-copy" disabled>复制</button>' +
+            '<button type="button" class="ai-act ai-retry" disabled>重试</button>' +
+            '<button type="button" class="ai-act ai-stop" hidden>停止</button>' +
+            '<button type="button" class="ai-close" title="关闭">×</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ai-meta"></div>' +
+        '<div class="ai-body"></div>' +
+        '<div class="ai-stage"></div>' +
+      '</div>';
+    const q = s => aiOut.querySelector(s);
+    aiUi = { topic: q('.ai-topic'), meta: q('.ai-meta'), body: q('.ai-body'), stage: q('.ai-stage'), copy: q('.ai-copy'), retry: q('.ai-retry'), stop: q('.ai-stop') };
+    q('.ai-close').onclick = () => {
+      if (aiJob) { aiJob.cancel(); aiJob = null; }
+      aiRunning = false;
+      aiOut.hidden = true;
+    };
+    aiUi.copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(aiRaw);
+        aiUi.copy.textContent = '已复制';
+        setTimeout(() => { if (aiUi) aiUi.copy.textContent = '复制'; }, 1200);
+      } catch (e) {}
+    };
+    aiUi.retry.onclick = () => { if (!aiRunning) runAiCard(true); };
+    aiUi.stop.onclick = () => { if (aiJob) { aiJob.cancel(); aiJob = null; } };
+    return aiUi;
+  }
+  async function findTopicTab() {
+    const tabs = await chrome.tabs.query({ url: 'https://linux.do/*' });
+    const isTopic = t => /^https:\/\/linux\.do\/t\/[^/]+\/\d+/.test(t.url || '');
+    return tabs.find(t => t.active && isTopic(t)) || tabs.find(isTopic) || null;
+  }
+  function aiFail(ui, msg) {
+    aiRunning = false;
+    aiJob = null;
+    ui.stop.hidden = true;
+    ui.retry.disabled = false;
+    ui.stage.textContent = '';
+    ui.body.innerHTML = '<div class="ai-err"></div>';
+    ui.body.firstChild.textContent = msg;
+  }
+  async function runAiCard(force) {
+    const ui = ensureAiCard();
+    if (!ui) return;
+    aiOut.hidden = false;
+    aiRunning = true;
+    aiRaw = '';
+    ui.copy.disabled = true;
+    ui.retry.disabled = true;
+    ui.stop.hidden = false;
+    ui.topic.textContent = '当前帖子';
+    ui.meta.textContent = '';
+    ui.stage.textContent = '正在读取帖子…';
+    ui.body.innerHTML = '<div class="ai-skeleton"><i></i><i></i><i></i><i></i></div>';
+
+    if (!settings.aiKey) {
+      aiFail(ui, '还没配置 AI Key：在下方“设置 → AI 总结”里填一个 Key 就能用。');
+      return;
+    }
+    const tab = await findTopicTab();
+    if (!tab) {
+      aiFail(ui, '没找到打开的帖子页。先打开一篇 linux.do 帖子，再点 AI 速读。');
+      return;
+    }
+    let payload = null;
+    try {
+      const r = await chrome.tabs.sendMessage(tab.id, { type: 'get-topic-content' });
+      if (r && r.ok) payload = r;
+    } catch (e) {}
+    if (!payload) {
+      aiFail(ui, '读不到帖子内容。请刷新一下帖子页（扩展刚更新时需要刷新）再试。');
+      return;
+    }
+
+    ui.topic.textContent = payload.title || '当前帖子';
+    ui.topic.title = payload.title || '';
+    ui.meta.textContent = payload.meta || '';
+    const started = Date.now();
+    const job = LDAI.summarize({
+      text: payload.text,
+      style: settings.aiStyle === 'deep' ? 'deep' : 'brief',
+      title: payload.title,
+      topicKey: 't' + payload.topicId + ':' + payload.posts,
+      force: !!force,
+      onStage: t => { if (t) ui.stage.textContent = t; },
+      onDelta: (d, full) => { aiRaw = full; scheduleAiCardRender(); }
+    });
+    aiJob = job;
+    try {
+      const res = await job.promise;
+      aiRaw = res.text || aiRaw;
+      renderAiCardBody();
+      ui.copy.disabled = false;
+      const meta = res.meta || {};
+      ui.meta.textContent = [
+        payload.meta,
+        res.cached ? '本地缓存' : (meta.model || settings.aiModel || ''),
+        res.cached ? '' : ((Date.now() - started) / 1000).toFixed(1) + 's',
+        aiRaw.length + ' 字'
+      ].filter(Boolean).join(' · ');
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (msg === '已停止') { renderAiCardBody(); ui.meta.textContent = '已停止生成'; }
+      else { ui.body.innerHTML = '<div class="ai-err"></div>'; ui.body.firstChild.textContent = '总结失败：' + msg; }
+    } finally {
+      aiRunning = false;
+      aiJob = null;
+      ui.stop.hidden = true;
+      ui.retry.disabled = false;
+      ui.stage.textContent = '';
+    }
+  }
+  if (aiBtn) aiBtn.onclick = () => runAiCard(false);
 
 
 // ---------- ReadBoost 自动读帖控制 ----------
