@@ -20,8 +20,10 @@
 ### 双击安装器（推荐，Windows）
 
 1. 打开 [install.bat](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.bat)，点右上角 Download raw file 图标下载，保存到任意位置（比如桌面）。
-2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开 `chrome://extensions/`。
+2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开 `chrome://extensions/`。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
 3. 在扩展页开启开发者模式，点“加载已解压的扩展程序”，选 `%USERPROFILE%\linuxdo-lite` 文件夹即可。以后更新再双击一次这个 bat 就行，设置不会丢。
+
+备选：如果 bat 还是跑不起来，用 [install.ps1](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.ps1)：右键点它 → 使用 PowerShell 运行。
 
 ### 安装（30 秒）
 
