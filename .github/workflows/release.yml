@@ -35,7 +35,7 @@ jobs:
             manifest.json background.js content.js content.css \
             popup.html popup.css popup.js sidepanel.html ai-summary.js \
             same-origin-fetch.js upstream-loader.js README.md \
-            install.bat install.ps1 \
+            install.bat \
             icons/ upstream/
 
       - name: Publish GitHub Release

@@ -5,7 +5,7 @@
 
 轻量、低内存的 Chrome / Edge 浏览器扩展，专为 [LINUX DO](https://linux.do) 打造：侧边栏刷帖、信任等级与 LDC 积分进度、多套摸鱼/IM 外观、自动读帖、AI 速读与全场景屏蔽过滤。
 
-当前版本：v1.7.1
+当前版本：v1.7.2
 
 ## 下载与安装
 
@@ -20,10 +20,8 @@
 ### 双击安装器（推荐，Windows）
 
 1. 打开 [install.bat](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.bat)，点右上角 Download raw file 图标下载，保存到任意位置（比如桌面）。
-2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开 `chrome://extensions/`。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
+2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开扩展页。安装器会自动识别 **Chrome / Edge**：两个都装了时优先打开正在运行的那个；有多个浏览器账号时直接打开你上次使用的配置文件，不会再卡在“谁在使用 Chrome”。要装到另一个账号，先在浏览器右上角切换配置文件，再点一次“加载已解压的扩展程序”。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
 3. 在扩展页开启开发者模式，点“加载已解压的扩展程序”，选 `%USERPROFILE%\linuxdo-lite` 文件夹即可。以后更新再双击一次这个 bat 就行，设置不会丢。
-
-备选：如果 bat 还是跑不起来，用 [install.ps1](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.ps1)：右键点它 → 使用 PowerShell 运行。
 
 ### 安装（30 秒）
 
