@@ -17,7 +17,16 @@ for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$hits=@(); $r
 
 if defined EXISTING set "DIR=%EXISTING%"
 if defined EXISTING set "UPDATE_MODE=1"
-set "ZIP=%DIR%\linuxdo-lite.zip"
+
+rem Prefer a zip you already downloaded: drag it onto this bat, or keep it next to the bat,
+rem in the current folder, or as linuxdo-lite*.zip under Downloads.
+set "USING_LOCAL="
+set "DOWNLOADED="
+set "LOCAL_ZIP="
+if not "%~1"=="" if exist "%~1" set "LOCAL_ZIP=%~1"
+if not defined LOCAL_ZIP for /f "delims=" %%Z in ('dir /b /o-d "%~dp0linuxdo-lite*.zip" 2^>nul') do if not defined LOCAL_ZIP set "LOCAL_ZIP=%~dp0%%Z"
+if not defined LOCAL_ZIP for /f "delims=" %%Z in ('dir /b /o-d "%CD%\linuxdo-lite*.zip" 2^>nul') do if not defined LOCAL_ZIP set "LOCAL_ZIP=%CD%\%%Z"
+if not defined LOCAL_ZIP for /f "delims=" %%Z in ('dir /b /o-d "%USERPROFILE%\Downloads\linuxdo-lite*.zip" 2^>nul') do if not defined LOCAL_ZIP set "LOCAL_ZIP=%USERPROFILE%\Downloads\%%Z"
 
 if not defined UPDATE_MODE goto install_fresh
 echo Found existing install at "%DIR%"
@@ -28,18 +37,35 @@ goto install_msg_done
 echo No existing install found. Installing to "%DIR%"
 :install_msg_done
 echo.
-echo Downloading latest release...
 if not exist "%DIR%" mkdir "%DIR%"
-curl.exe -L -o "%ZIP%" "%URL%"
+
+if not defined LOCAL_ZIP goto download
+set "ZIP=%LOCAL_ZIP%"
+tar -tf "%ZIP%" 2>nul | findstr /i /c:"manifest.json" >nul
+if errorlevel 1 goto local_bad
+echo Using local package: "%ZIP%"
+echo Skipping download.
+set "USING_LOCAL=1"
+call :extract_zip
+if exist "%DIR%\manifest.json" goto unpack_ok
+:local_bad
+echo Local zip is invalid or incomplete. Downloading instead...
+set "LOCAL_ZIP="
+set "USING_LOCAL="
+
+:download
+set "ZIP=%DIR%\linuxdo-lite.zip"
+echo Downloading latest release...
+curl.exe -L --fail --retry 2 --connect-timeout 15 -o "%ZIP%" "%URL%"
 if errorlevel 1 goto dl_fail
 if not exist "%ZIP%" goto dl_fail
+set "DOWNLOADED=1"
 echo Download OK. Extracting...
-tar -xf "%ZIP%" -C "%DIR%"
-if exist "%DIR%\manifest.json" goto extracted
-echo tar failed, trying PowerShell...
-powershell -NoProfile -Command "Expand-Archive -Force '%ZIP%' '%DIR%'"
-:extracted
-del "%ZIP%" >nul 2>&1
+call :extract_zip
+if not exist "%DIR%\manifest.json" goto unpack_fail
+
+:unpack_ok
+if defined DOWNLOADED del "%ZIP%" >nul 2>&1
 if not exist "%DIR%\manifest.json" goto unpack_fail
 echo.
 echo Installed to %DIR%
@@ -124,14 +150,21 @@ if not exist "%~1\Local State" exit /b 0
 for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "try{(ConvertFrom-Json ([IO.File]::ReadAllText('%~1\Local State'))).profile.last_used}catch{}" 2^>nul`) do set "PROFILE=%%P"
 exit /b 0
 
+:extract_zip
+tar -xf "%ZIP%" -C "%DIR%"
+if exist "%DIR%\manifest.json" exit /b 0
+echo tar failed, trying PowerShell...
+powershell -NoProfile -Command "Expand-Archive -Force '%ZIP%' '%DIR%'"
+exit /b 0
+
 :done
 echo.
 pause
 exit /b 0
 :dl_fail
 echo.
-echo Download failed. Check network / VPN and double-click again.
-echo Or download manually from Releases.
+echo Download failed. If you already have the zip, put linuxdo-lite.zip next to this bat
+echo and double-click again; it will use that file instead of downloading.
 echo.
 pause
 exit /b 1

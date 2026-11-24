@@ -83,7 +83,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "version": "1.7.5",
+  "version": "1.7.6",
   "web_accessible_resources": [
     {
       "matches": [

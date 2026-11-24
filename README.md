@@ -5,7 +5,7 @@
 
 轻量、低内存的 Chrome / Edge 浏览器扩展，专为 [LINUX DO](https://linux.do) 打造：侧边栏刷帖、信任等级与 LDC 积分进度、多套摸鱼/IM 外观、自动读帖、AI 速读与全场景屏蔽过滤。
 
-当前版本：v1.7.5
+当前版本：v1.7.6
 
 ## 下载与安装
 
@@ -20,7 +20,7 @@
 ### 双击安装器（推荐，Windows）
 
 1. 打开 [install.bat](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.bat)，点右上角 Download raw file 图标下载，保存到任意位置（比如桌面）。
-2. 双击 `install.bat`，它会自动下载最新版、解压到原扩展目录，并自动打开扩展页。安装器会先查找 Chrome / Edge 里**已经加载的 LinuxDo Lite 目录并原地覆盖**（配置、AI Key、扩展 ID 都不会变）；找不到才装到 `%USERPROFILE%\linuxdo-lite`。它还会自动识别 **Chrome / Edge**：两个都装了时优先打开正在运行的那个；有多个浏览器账号时直接打开你上次使用的配置文件，不会再卡在“谁在使用 Chrome”。要装到另一个账号，先在浏览器右上角切换配置文件，再点一次“加载已解压的扩展程序”。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
+2. 双击 `install.bat`。**如果你已经下载了 `linuxdo-lite.zip`**，把它放在 bat 旁边、或直接拖到 bat 图标上即可，安装器会优先使用本地包、不再联网下载（也会自动找 `Downloads\linuxdo-lite*.zip` 里最新的那个）。它会先查找 Chrome / Edge 里**已经加载的 LinuxDo Lite 目录并原地覆盖**（配置、AI Key、扩展 ID 都不会变）；找不到才装到 `%USERPROFILE%\linuxdo-lite`。它还会自动识别 **Chrome / Edge**：两个都装了时优先打开正在运行的那个；有多个浏览器账号时直接打开你上次使用的配置文件，不会再卡在“谁在使用 Chrome”。要装到另一个账号，先在浏览器右上角切换配置文件，再点一次“加载已解压的扩展程序”。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
 3. 首次安装：在扩展页开启开发者模式，点“加载已解压的扩展程序”，选安装器打印的目录。之后更新再双击一次 bat 即可，安装器会原地覆盖，最后在扩展页点一下刷新 ↻，设置和 AI Key 都不会丢。
 
 ### 安装（30 秒）
