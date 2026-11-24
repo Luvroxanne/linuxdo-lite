@@ -669,10 +669,22 @@ function bindSettings() {
       el.addEventListener('input', saveOnInput);
     }
   });
-  function exportSettingsFile() {
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+  async function exportSettingsFile() {
+    let favs = [];
+    let read = {};
+    try { favs = await getFavs(); } catch (e) {}
+    try { read = await getRead(); } catch (e) {}
+    const payload = {
+      app: 'linuxdo-lite',
+      schema: 1,
+      exportedAt: new Date().toISOString(),
+      settings: settings,
+      favorites: favs,
+      readTopics: read
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
-    a.href = url; a.download = 'linuxdo-lite-settings.json'; a.click(); URL.revokeObjectURL(url);
+    a.href = url; a.download = 'linuxdo-lite-backup.json'; a.click(); URL.revokeObjectURL(url);
   }
   const exp = $('set-export');
   if (exp) exp.onclick = exportSettingsFile;
@@ -682,11 +694,18 @@ function bindSettings() {
     file.onchange = async () => {
       const f = file.files[0]; if (!f) return;
       try {
-        settings = { ...DEFAULTS, ...JSON.parse(await f.text()) };
+        const raw = JSON.parse(await f.text());
+        const s = raw && raw.settings ? raw.settings : raw;
+        if (!s || typeof s !== 'object') throw new Error('格式不对');
+        settings = { ...DEFAULTS, ...s };
         await chrome.storage.local.set({ ld_settings: settings });
+        if (raw && Array.isArray(raw.favorites)) await chrome.storage.local.set({ ld_favorites: raw.favorites });
+        if (raw && raw.readTopics && typeof raw.readTopics === 'object') await chrome.storage.local.set({ ld_read_topics: raw.readTopics });
         try { await chrome.storage.sync.set({ ld_settings_backup: settings }); } catch (e) {}
         await loadSettings();
-        showToast('设置已导入');
+        await renderFavs();
+        if (listEl) load();
+        showToast('配置已导入');
       } catch (e) { showToast('导入失败：JSON 格式无效'); }
       file.value = '';
     };
@@ -709,12 +728,15 @@ function bindSettings() {
     curVerEl.textContent = 'v' + chrome.runtime.getManifest().version;
   }
   const chkUpdBtn = $('ext-check-update'), dlUpdBtn = $('ext-download-update'), updStat = $('ext-update-status');
+  const extExportBtn = $('ext-export-backup'), extImportBtn = $('ext-import-backup');
+  if (extExportBtn) extExportBtn.onclick = async () => { await exportSettingsFile(); showToast('已导出配置备份'); };
+  if (extImportBtn) extImportBtn.onclick = () => { const f = $('set-import-file'); if (f) f.click(); };
   let latestDownloadUrl = '';
   if (dlUpdBtn) {
     dlUpdBtn.onclick = () => {
       if (!latestDownloadUrl) return;
-      // 手动解压到新文件夹会换扩展 ID，先自动导出一份设置备份，装完可一键导入。
-      try { exportSettingsFile(); } catch (e) {}
+      // 手动解压到新文件夹会换扩展 ID，先自动导出一份配置备份，装完可导入。
+      exportSettingsFile().catch(() => {});
       chrome.tabs.create({ url: latestDownloadUrl });
     };
   }
@@ -734,9 +756,7 @@ function bindSettings() {
             dlUpdBtn.title = sourceZip ? '将下载 linuxdo-lite-main.zip，解压后选内层文件夹' : '将下载 linuxdo-lite.zip';
           }
           if (updStat) {
-            updStat.textContent = sourceZip
-              ? '新版本 v' + r.latestVersion + ' 的 Release 包暂不可用。建议直接双击 install.bat 更新（会原地覆盖，配置不丢）；源码包解压后要选内层 linuxdo-lite-main 文件夹。'
-              : '发现新版本 v' + r.latestVersion + '：下载的是 linuxdo-lite.zip。点下载时会自动导出一份设置备份；装完覆盖原目录并点刷新，配置不会丢。';
+            updStat.textContent = '发现新版本 v' + r.latestVersion + '：下载的是 linuxdo-lite.zip。点下载会先导出一份配置备份；手动更新解压覆盖当前扩展目录后点刷新，或在换目录安装后导入备份。';
           }
           showToast('发现新版本 v' + r.latestVersion);
         } else {
@@ -744,7 +764,7 @@ function bindSettings() {
           showToast('已是最新版本');
         }
       } catch (e) {
-        const msg = '检查失败：' + (e.message || e) + '。可开代理后重试，或直接双击 install.bat 更新。';
+        const msg = '检查失败：' + (e.message || e) + '。可开代理后重试，或手动下载最新 zip 覆盖更新。';
         if (updStat) updStat.textContent = msg;
         showToast(msg);
       }

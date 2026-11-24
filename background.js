@@ -184,7 +184,7 @@ async function checkExtensionUpdate() {
         if (v) { latestVersion = v; break; }
       } catch (e) { lastErr = String(e.message || e); }
     }
-    if (!latestVersion) throw new Error('连不上 GitHub：' + (lastErr || '网络错误') + '。可开代理后重试，或直接运行 install.bat 更新');
+    if (!latestVersion) throw new Error('连不上 GitHub：' + (lastErr || '网络错误') + '。可开代理后重试，或手动下载最新 zip 覆盖更新');
     // Releases API 被限流/被墙时，先确认对应标签的 Release 包是否存在：
     // 存在就下 linuxdo-lite.zip；只有真的没有 Release 才退到 main 源码包。
     const zipUrl = `${repoUrl}/releases/download/v${latestVersion}/linuxdo-lite.zip`;
