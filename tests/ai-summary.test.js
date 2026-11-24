@@ -16,9 +16,9 @@ async function runTests() {
   // 1. Markdown 渲染：标题 / 列表 / 加粗 / 代码 / 链接
   const html = LDAI.renderMarkdown([
     '## 一句话结论',
-    '这篇帖子讲 **Docker 反代**，值得读。',
+    '这篇帖子讲 **自动签到**，值得读。',
     '## 核心要点',
-    '- 第一条 `docker`',
+    '- 第一条 `每日签到`',
     '- 第二条 [文档](https://example.com/doc)',
     '1. 有序项',
     '> 引用内容',
@@ -27,8 +27,8 @@ async function runTests() {
     '```'
   ].join('\n'));
   assert.ok(html.includes('<h3>一句话结论</h3>'), '二级标题应渲染为 h3');
-  assert.ok(html.includes('<strong>Docker 反代</strong>'), '粗体应渲染');
-  assert.ok(html.includes('<li>第一条 <code>docker</code></li>'), '列表与行内代码应渲染');
+  assert.ok(html.includes('<strong>自动签到</strong>'), '粗体应渲染');
+  assert.ok(html.includes('<li>第一条 <code>每日签到</code></li>'), '列表与行内代码应渲染');
   assert.ok(html.includes('href="https://example.com/doc"'), 'http 链接应可点击');
   assert.ok(html.includes('<ol><li>有序项</li></ol>'), '有序列表应渲染');
   assert.ok(html.includes('<blockquote>引用内容</blockquote>'), '引用应渲染');
