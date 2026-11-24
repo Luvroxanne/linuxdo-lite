@@ -104,6 +104,7 @@ async function checkExtensionUpdate() {
   const repoUrl = `https://github.com/${EXT_REPO}`;
   let latestVersion = '';
   let downloadUrl = `${repoUrl}/releases/latest`;
+  let downloadKind = 'release';
   let releaseUrl = `${repoUrl}/releases/latest`;
   let notes = '';
   let source = 'release';
@@ -115,8 +116,12 @@ async function checkExtensionUpdate() {
       latestVersion = String(j.tag_name || j.name || '').replace(/^v/i, '');
       releaseUrl = j.html_url || releaseUrl;
       notes = String(j.body || '').slice(0, 300);
-      const zipAsset = (j.assets || []).find(a => a && /\.zip$/i.test(a.name || ''));
-      downloadUrl = (zipAsset && zipAsset.browser_download_url) || j.zipball_url || releaseUrl;
+      const zipAsset = (j.assets || []).find(a => a && /^linuxdo-lite\.zip$/i.test(a.name || ''))
+        || (j.assets || []).find(a => a && /\.zip$/i.test(a.name || ''));
+      // 固定用 Release 附件名 linuxdo-lite.zip；没有附件才退回同标签的固定下载地址，
+      // 不要用 zipball（会下成 linuxdo-lite-<hash>.zip，还不是可直接加载的目录结构）。
+      downloadUrl = (zipAsset && zipAsset.browser_download_url)
+        || (latestVersion ? `${repoUrl}/releases/download/v${latestVersion}/linuxdo-lite.zip` : `${repoUrl}/releases/latest/download/linuxdo-lite.zip`);
     }
   } catch (e) {}
 
@@ -126,13 +131,27 @@ async function checkExtensionUpdate() {
     if (!r2.ok) throw new Error('无法连接 GitHub（HTTP ' + r2.status + '）');
     const j2 = await r2.json();
     latestVersion = String(j2.version || '').replace(/^v/i, '');
-    downloadUrl = `${repoUrl}/archive/refs/heads/main.zip`;
+    // Releases API 被限流/被墙时，先确认对应标签的 Release 包是否存在：
+    // 存在就下 linuxdo-lite.zip；只有真的没有 Release 才退到 main 源码包。
+    const zipUrl = `${repoUrl}/releases/download/v${latestVersion}/linuxdo-lite.zip`;
+    let hasZip = false;
+    try {
+      const h = await fetch(zipUrl, { method: 'HEAD', cache: 'no-store' });
+      hasZip = !!(h && h.ok);
+    } catch (e) {}
+    if (hasZip || !latestVersion) {
+      downloadUrl = zipUrl;
+      downloadKind = 'release';
+    } else {
+      downloadUrl = `${repoUrl}/archive/refs/heads/main.zip`;
+      downloadKind = 'source';
+    }
     releaseUrl = repoUrl;
   }
 
   if (!latestVersion) throw new Error('未解析到远端版本号');
   const hasUpdate = compareSemver(latestVersion, currentVersion) > 0;
-  return { ok: true, currentVersion, latestVersion, hasUpdate, downloadUrl, releaseUrl, notes, source };
+  return { ok: true, currentVersion, latestVersion, hasUpdate, downloadUrl, downloadKind, releaseUrl, notes, source };
 }
 
 // ---------- AI 速读 ----------

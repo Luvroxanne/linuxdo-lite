@@ -115,9 +115,30 @@ async function runTests() {
   assert.strictEqual(res3.hasUpdate, true);
   assert.strictEqual(res3.source, 'manifest');
   assert.strictEqual(res3.latestVersion, '1.6.16');
+  assert.ok(res3.downloadUrl.endsWith('/archive/refs/heads/main.zip'), 'Release 包确实不存在时才退回 main 源码包');
+  assert.strictEqual(res3.downloadKind, 'source');
   console.log('[PASS] 5. 无 Release 时自动降级读取 manifest.json 测试');
 
-  console.log('\nALL 5 TESTS PASSED');
+  // 6. Releases API 失败但 Release 包存在时，仍下载 linuxdo-lite.zip（文件名不带 -main）
+  const env4 = createBgSandbox(async (url, init) => {
+    if (url.includes('/releases/latest')) return { ok: false, status: 403 };
+    if (url.includes('raw.githubusercontent.com')) {
+      return { ok: true, status: 200, json: async () => ({ version: '1.6.16' }) };
+    }
+    if (url.includes('/releases/download/v1.6.16/linuxdo-lite.zip')) {
+      assert.ok(init && init.method === 'HEAD', '应先 HEAD 探测 Release 包是否存在');
+      return { ok: true, status: 200 };
+    }
+    throw new Error('Unexpected URL: ' + url);
+  }, '1.6.15');
+  const res4 = await env4.sendMessage({ type: 'check-ext-update' });
+  assert.strictEqual(res4.ok, true);
+  assert.strictEqual(res4.hasUpdate, true);
+  assert.strictEqual(res4.downloadKind, 'release');
+  assert.ok(res4.downloadUrl.endsWith('/releases/download/v1.6.16/linuxdo-lite.zip'), '应返回固定附件名 linuxdo-lite.zip');
+  console.log('[PASS] 6. API 失败时仍定位 Release 同名 ZIP');
+
+  console.log('\nALL 6 TESTS PASSED');
 }
 
 runTests().catch(err => {

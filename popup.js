@@ -713,8 +713,17 @@ function bindSettings() {
         if (!r || !r.ok) throw new Error((r && r.error) || '检查失败');
         if (r.hasUpdate) {
           latestDownloadUrl = r.downloadUrl || r.releaseUrl;
-          if (dlUpdBtn) { dlUpdBtn.hidden = false; dlUpdBtn.textContent = '下载 v' + r.latestVersion; }
-          if (updStat) updStat.textContent = '发现新版本 v' + r.latestVersion + '，下载覆盖原目录后在扩展页点刷新即可保留设置。';
+          const sourceZip = r.downloadKind === 'source';
+          if (dlUpdBtn) {
+            dlUpdBtn.hidden = false;
+            dlUpdBtn.textContent = sourceZip ? '下载源码包 v' + r.latestVersion : '下载 v' + r.latestVersion;
+            dlUpdBtn.title = sourceZip ? '将下载 linuxdo-lite-main.zip，解压后选内层文件夹' : '将下载 linuxdo-lite.zip';
+          }
+          if (updStat) {
+            updStat.textContent = sourceZip
+              ? '发现新版本 v' + r.latestVersion + '（Releases 暂时不可用）：将下载 linuxdo-lite-main.zip 源码包，解压后要选内层 linuxdo-lite-main 文件夹。'
+              : '发现新版本 v' + r.latestVersion + '：将下载 linuxdo-lite.zip，解压覆盖原目录后到扩展页点刷新，设置不会丢。';
+          }
           showToast('发现新版本 v' + r.latestVersion);
         } else {
           if (updStat) updStat.textContent = '已是最新版本（v' + r.currentVersion + '）。';
