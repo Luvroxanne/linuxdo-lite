@@ -5,7 +5,7 @@
 
 轻量、低内存的 Chrome / Edge 浏览器扩展，专为 [LINUX DO](https://linux.do) 打造：侧边栏刷帖、信任等级与 LDC 积分进度、多套摸鱼/IM 外观、自动读帖、AI 速读与全场景屏蔽过滤。
 
-当前版本：v1.7.8
+当前版本：v1.7.9
 
 ## 下载与安装
 
@@ -59,7 +59,7 @@ mkdir -p ~/linuxdo-lite && curl -fsSL "https://github.com/Luvroxanne/linuxdo-lit
 
 - **侧边栏看帖与已读隐藏**：支持最热/最新切换、收藏夹、自动隐藏已读帖子。被 Cloudflare 拦截时会自动开一个不激活的后台页过验证，取完即关；只打开插件、不打开 L 站也能刷新列表。
 - **等级与 LDC 积分看板**：打开等级页自动同步成员信息、Connect 近 100 天进度和 LDC 可用余额，无需手动刷新，也不用先打开 `connect.linux.do` / `credit.linux.do`；首次同步会自动开一个后台页过 Cloudflare。上次结果会缓存，下次打开先秒显再更新。
-- **ReadBoost 自动读帖**：原样集成 [LINUXDO ReadBoost v2.2](https://greasyfork.org/zh-CN/scripts/519843-linuxdo-readboost)（作者 Do），支持帖子页顶栏 `▶`/`⏹` 及侧边栏一键启停与参数配置。
+- **ReadBoost 自动读帖**：集成 [LINUXDO ReadBoost v2.2](https://greasyfork.org/zh-CN/scripts/519843-linuxdo-readboost)（作者 Do），支持帖子页顶栏 `▶`/`⏹`、侧边栏启停与参数配置。默认不会自动运行；打开“自动运行”后进入帖子会自动刷阅读记录，存在账号风险。本扩展只修了“高级设置模式”无法保持开启的问题，并让风险提示常驻，其余逻辑未改。
 - **外观主题与摸鱼增强**：支持默认原版、钉钉/飞书/企微 IM（原样集成 [czm15053/linuxdo-idea-ui](https://github.com/czm15053/linuxdo-idea-ui) v1.3.7，MIT）、暗黑、护眼绿、摸鱼灰；提供老板键 `Alt+M`、隐私模式、只看楼主、楼层号、快捷回复与全场景用户/关键词屏蔽。
 - **AI 速读（v1.7 重做）**：在任意 linux.do 帖子页点右下角 **AI 速读**（或按 `Alt+S`）直接弹出速读卡，侧边栏也有入口。自动抓取标题、楼主正文和前 20 楼评论，长帖先分段速读再汇总；结果流式输出、Markdown 排版，给出「一句话结论 / 核心要点 / 讨论与分歧 / 值不值得读」。支持速读与深度两种风格，同一帖 7 天内命中本地缓存秒开，可复制、停止和重新生成。接口支持任意 OpenAI 兼容服务（OpenAI / DeepSeek / 本地反代），API Key 仅保存在本地并同步备份至 `chrome.storage.sync`。
 

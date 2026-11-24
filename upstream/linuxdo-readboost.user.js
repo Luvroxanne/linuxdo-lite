@@ -11,6 +11,8 @@
 // @description:zh-TW LINUXDO ReadBoost是一個LINUXDO刷取已讀帖量腳本，理論上支持所有Discourse論壇
 // @description:en LINUXDO ReadBoost is a script for LINUXDO to boost the number of read posts. It theoretically supports all Discourse forums.
 // ==/UserScript==
+// 本地补丁（LinuxDo Lite）：高级设置模式持久化；风险提示常驻在设置面板里。
+// 其余逻辑与原版 LINUXDO ReadBoost v2.2 保持一致。
 
 (function () {
   'use strict'
@@ -34,7 +36,8 @@
     minReadTime: 800,
     maxReadTime: 3000,
     autoStart: false,
-    startFromCurrent: false
+    startFromCurrent: false,
+    advancedMode: false
   }
 
   let config = { ...DEFAULT_CONFIG, ...getStoredConfig() }
@@ -72,7 +75,8 @@
       minReadTime: GM_getValue("minReadTime", DEFAULT_CONFIG.minReadTime),
       maxReadTime: GM_getValue("maxReadTime", DEFAULT_CONFIG.maxReadTime),
       autoStart: GM_getValue("autoStart", DEFAULT_CONFIG.autoStart),
-      startFromCurrent: GM_getValue("startFromCurrent", DEFAULT_CONFIG.startFromCurrent)
+      startFromCurrent: GM_getValue("startFromCurrent", DEFAULT_CONFIG.startFromCurrent),
+      advancedMode: GM_getValue("advancedMode", DEFAULT_CONFIG.advancedMode)
     }
   }
 
@@ -149,6 +153,9 @@
 
     settingsDiv.innerHTML = `
       <h3 style="margin-top: 0; color: var(--primary); text-align: center;">ReadBoost 设置</h3>
+      <div style="margin: 0 0 14px; padding: 8px 10px; border-radius: 6px; background: rgba(220,53,69,0.1); color: #dc3545; font-size: 12px; line-height: 1.5;">
+        自动读帖会修改阅读记录，存在账号被限制或封禁的风险，请自行评估。
+      </div>
       <div style="display: grid; gap: 15px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <label style="display: flex; flex-direction: column; gap: 5px;">
@@ -182,7 +189,7 @@
         </div>
         <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
           <label style="display: flex; align-items: center; gap: 8px;">
-            <input type="checkbox" id="advancedMode" style="transform: scale(1.2);">
+            <input type="checkbox" id="advancedMode" ${config.advancedMode ? "checked" : ""} style="transform: scale(1.2);">
             <span>高级设置模式</span>
           </label>
           <label style="display: flex; align-items: center; gap: 8px;">
@@ -194,6 +201,9 @@
             <span>从当前浏览位置开始</span>
           </label>
         </div>
+        <div id="advancedWarning" style="display:${config.advancedMode ? "block" : "none"}; color:#dc3545; font-size:12px; line-height:1.5;">
+          高级设置会修改请求频率和阅读时长，过于激进会增加账号风险。
+        </div>
         <div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
           <button id="saveSettings" style="padding: 10px 20px; border: none; border-radius: 6px; background: #007bff; color: white; cursor: pointer;">保存设置</button>
           <button id="resetDefaults" style="padding: 10px 20px; border: none; border-radius: 6px; background: #6c757d; color: white; cursor: pointer;">重置默认</button>
@@ -202,17 +212,15 @@
       </div>
     `
     document.body.appendChild(settingsDiv)
-    toggleAdvancedInputs(false)
+    toggleAdvancedInputs(!!config.advancedMode)
 
     document.getElementById("advancedMode").addEventListener("change", (e) => {
-      if (e.target.checked) {
-        const confirmed = confirm("高级设置可能增加账号风险，确定要启用吗？")
-        if (!confirmed) {
-          e.target.checked = false
-          return
-        }
-      }
-      toggleAdvancedInputs(e.target.checked)
+      const on = !!e.target.checked
+      config.advancedMode = on
+      GM_setValue("advancedMode", on)
+      toggleAdvancedInputs(on)
+      const warn = document.getElementById("advancedWarning")
+      if (warn) warn.style.display = on ? "block" : "none"
     })
 
     document.getElementById("saveSettings").addEventListener("click", () => {
@@ -224,7 +232,8 @@
         minReadTime: parseInt(document.getElementById("minReadTime").value, 10),
         maxReadTime: parseInt(document.getElementById("maxReadTime").value, 10),
         autoStart: document.getElementById("autoStart").checked,
-        startFromCurrent: document.getElementById("startFromCurrent").checked
+        startFromCurrent: document.getElementById("startFromCurrent").checked,
+        advancedMode: document.getElementById("advancedMode").checked
       }
       saveConfig(newConfig)
       settingsDiv.remove()

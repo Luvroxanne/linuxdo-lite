@@ -1,5 +1,5 @@
 // ReadBoost GM 垫片：在页面主世界提供 GM_getValue / GM_setValue / GM_registerMenuCommand
-// 供 upstream/linuxdo-readboost.user.js（原版 v2.2，未改一行）直接运行，
+// 供 upstream/linuxdo-readboost.user.js（原版 v2.2，仅补高级设置持久化与风险提示）直接运行，
 // 并把油猴菜单命令桥接到：1) 页面顶栏快捷开始/停止按钮；2) 扩展侧边栏按钮。
 // 性能优化：不监听整棵 document.documentElement，仅监听 .header-buttons 直接子节点与路由切换。
 (function () {
