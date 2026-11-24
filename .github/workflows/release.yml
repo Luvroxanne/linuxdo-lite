@@ -27,6 +27,7 @@ jobs:
         run: |
           node tests/update-check.test.js
           node tests/ai-summary.test.js
+          node tests/auto-fetch.test.js
 
       - name: Package Chrome extension zip
         run: |

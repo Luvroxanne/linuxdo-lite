@@ -37,48 +37,89 @@ chrome.storage.onChanged.addListener((ch, area) => {
 });
 
 
-// 后台自动过 CF（单飞锁 + 3 分钟冷却）：仅在直接 fetch 被 CF 拦截且无已打开论坛页时触发
+// 后台自动过 CF（单飞锁 + 冷却）：没有论坛页时临时开一个不激活的页面，
+// 借它拿到 Cloudflare 凭证后再取数，取完关掉。等级 / LDC / 帖子都复用这套。
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function waitTabComplete(tabId, timeout) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    let t = null;
+    try { t = await chrome.tabs.get(tabId); } catch (e) { return false; }
+    if (t.status === 'complete') return true;
+    await sleep(350);
+  }
+  return false;
+}
+
+// 已有同源标签页就复用；没有就开一个不激活的，work 返回 ok 前会反复重试（等 CF 验证过去）。
+// forceNew=true 时忽略已有页面，强制新开一个干净页面。
+async function withHiddenTab(url, work, timeout, forceNew) {
+  const pattern = new URL(url).origin + '/*';
+  let tab = null;
+  let created = false;
+  if (!forceNew) {
+    try { tab = (await chrome.tabs.query({ url: pattern }))[0] || null; } catch (e) {}
+  }
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: url, active: false });
+    created = true;
+  }
+  const deadline = Date.now() + (timeout || 20000);
+  try {
+    await waitTabComplete(tab.id, Math.max(3000, deadline - Date.now()));
+    let last = { ok: false, error: '页面未响应' };
+    while (Date.now() < deadline) {
+      try {
+        const res = await work(tab.id);
+        if (res && res.ok) return res;
+        if (res && res.error) last = res;
+        else last = res || last;
+      } catch (e) {
+        last = { ok: false, error: String(e.message || e) };
+      }
+      await sleep(900);
+    }
+    return last;
+  } finally {
+    if (created && tab && tab.id) { try { await chrome.tabs.remove(tab.id); } catch (e) {} }
+  }
+}
+
 let cfPassPromise = null;
 let lastCfPassAt = 0;
 
 async function runAutoPassCF(kind) {
-  const now = Date.now();
   if (cfPassPromise) return cfPassPromise;
-  if (now - lastCfPassAt < 180000) {
-    return { ok: false, error: '刚刚已尝试后台过验证，请稍后再点刷新或手动打开论坛' };
+  if (Date.now() - lastCfPassAt < 60000) {
+    return { ok: false, error: '刚刚已尝试自动过验证，请稍后再试或手动打开论坛' };
   }
-  lastCfPassAt = now;
+  lastCfPassAt = Date.now();
   cfPassPromise = (async () => {
-    let tab = null;
-    try {
-      tab = await chrome.tabs.create({ url: 'https://linux.do/', active: false });
-      const deadline = Date.now() + 9000;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 900));
-        // 先试让该页面直接拉 JSON（带完整 CF 上下文）
-        try {
-          const via = await chrome.tabs.sendMessage(tab.id, { type: 'fetch-via-page', kind: kind || 'top' });
-          if (via && via.ok) return via;
-        } catch (e) {}
-        // 再试后台 fetch（此时 cf_clearance cookie 可能已经写入）
-        try {
-          const url = kind === 'new' ? 'https://linux.do/latest.json' : 'https://linux.do/top.json';
-          const r = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'application/json' } });
-          if (r.ok) {
-            const text = await r.text();
-            if (!text.trim().startsWith('<')) return { ok: true, data: JSON.parse(text) };
-          }
-        } catch (e) {}
-      }
-      return { ok: false, error: '后台未能自动通过 Cloudflare（可能需要人工点击人机验证或更换节点）' };
-    } catch (e) {
-      return { ok: false, error: String(e.message || e) };
-    } finally {
-      if (tab && tab.id) { try { await chrome.tabs.remove(tab.id); } catch (e) {} }
-      cfPassPromise = null;
+    const jsonUrl = kind === 'new' ? 'https://linux.do/latest.json' : 'https://linux.do/top.json';
+    const work = async tabId => {
+      try {
+        const via = await chrome.tabs.sendMessage(tabId, { type: 'fetch-via-page', kind: kind || 'top' });
+        if (via && via.ok) return via;
+      } catch (e) {}
+      try {
+        const r = await fetch(jsonUrl, { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'application/json' } });
+        if (r.ok) {
+          const text = await r.text();
+          if (!text.trim().startsWith('<')) return { ok: true, data: JSON.parse(text), via: 'fetch' };
+        }
+      } catch (e) {}
+      return { ok: false };
+    };
+    let res = await withHiddenTab('https://linux.do/', work, 25000);
+    if (!res || !res.ok) {
+      // 复用已有页面可能已经坏了（旧版 content script / 验证过期），再强制开一个干净页面试一次
+      res = await withHiddenTab('https://linux.do/', work, 20000, true);
     }
+    if (res && res.ok) return res;
+    return { ok: false, error: '后台未能自动通过 Cloudflare（可能需要人工点击人机验证或更换节点）' };
   })();
-  return cfPassPromise;
+  try { return await cfPassPromise; } finally { cfPassPromise = null; }
 }
 
 
@@ -385,30 +426,79 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'check-ext-update') { checkExtensionUpdate().then(sendResponse).catch(e => sendResponse({ ok: false, error: String(e.message || e) })); return true; }
   if (msg.type === 'auto-pass-cf') { runAutoPassCF(msg.kind).then(sendResponse); return true; }
   if (msg.type === 'set-panel-behavior') { applyPanelBehavior().then(() => sendResponse({ ok: true })); return true; }
-  // Connect 精确数据：后台直接拉 https://connect.linux.do/（带登录态），
-  // 侧边栏再用 DOMParser 解析那张“信任级别 3 的要求”卡片。之前用 /summary.json
-  // 全周期数当参考是错的：比如 R0xanne 全周期已读 55,909，100 天内只有 13,128/20,000，
-  // 全周期看是“已达标”，Connect 看是未达到，还差浏览帖子这一项。
+  // Connect 精确数据：先后台直连，被 Cloudflare / 登录态拦住时自动开一个不激活的
+  // connect.linux.do 页面取 HTML，取完关掉。等级页打开就能自动同步，不用手动点。
   if (msg.type === 'fetch-connect') {
-    fetch('https://connect.linux.do/', { credentials: 'include', headers: { 'Accept': 'text/html,application/xhtml+xml' } })
-      .then(async r => { if (!r.ok) throw new Error('HTTP ' + r.status); sendResponse({ ok: true, html: await r.text() }); })
-      .catch(e => sendResponse({ ok: false, error: String(e.message || e) }));
+    (async () => {
+      const url = 'https://connect.linux.do/';
+      try {
+        const r = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'text/html,application/xhtml+xml' } });
+        const html = await r.text();
+        if (r.ok && html.length > 1000 && html.includes('信任级别')) {
+          sendResponse({ ok: true, html, via: 'fetch' });
+          return;
+        }
+      } catch (e) {}
+      const res = await withHiddenTab(url, async tabId => {
+        try {
+          const r = await chrome.tabs.sendMessage(tabId, { type: 'get-page-html' });
+          if (r && r.ok && r.html && r.html.includes('信任级别')) {
+            return { ok: true, html: r.html, via: 'tab' };
+          }
+        } catch (e) {}
+        return { ok: false };
+      }, 20000);
+      if (res && res.ok) sendResponse(res);
+      else sendResponse({ ok: false, error: '没能读取 connect.linux.do，请确认已登录并已通过 Cloudflare' });
+    })();
     return true;
   }
   // LDC：官方实时积分脚本就是调这个接口：GET https://credit.linux.do/api/v1/oauth/user-info，
   // 返回 data.available_balance（可用）、data.community_balance（社区积分底数）等。
   // 再拿 /u/{用户名}.json 里的 gamification_score 减 community_balance，就是今日实时新增（未结转）。
+  // 后台直连失败时同样自动开临时页面，借它的登录态与 CF 凭证取数。
   if (msg.type === 'fetch-ldc') {
-    fetch('https://credit.linux.do/api/v1/oauth/user-info', { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'application/json' } })
-      .then(async r => {
+    (async () => {
+      const url = 'https://credit.linux.do/api/v1/oauth/user-info';
+      try {
+        const r = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'application/json' } });
         const text = await r.text();
         if (r.status === 401) throw new Error('未登录 credit.linux.do');
         if (text.trim().startsWith('<')) throw new Error('被 Cloudflare 拦截（HTTP ' + r.status + '）');
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        const j = JSON.parse(text);
-        sendResponse({ ok: true, data: j });
-      })
-      .catch(e => sendResponse({ ok: false, error: String(e.message || e) }));
+        sendResponse({ ok: true, data: JSON.parse(text), via: 'fetch' });
+        return;
+      } catch (e) {}
+      const res = await withHiddenTab('https://credit.linux.do/', async tabId => {
+        try {
+          const r = await chrome.tabs.sendMessage(tabId, { type: 'same-origin-fetch', url: url, accept: 'application/json' });
+          if (r && r.ok && r.text && !r.text.trim().startsWith('<')) {
+            return { ok: true, data: JSON.parse(r.text), via: 'tab' };
+          }
+          if (r && r.status === 401) return { ok: false, error: '未登录 credit.linux.do' };
+        } catch (e) {}
+        return { ok: false };
+      }, 20000);
+      if (res && res.ok) sendResponse(res);
+      else sendResponse({ ok: false, error: (res && res.error) || '没能读取 credit.linux.do，请确认已登录' });
+    })();
+    return true;
+  }
+  // 等级 / 成员信息：优先用已打开的 linux.do 页面；没有就自动开一个不激活的首页
+  // 借登录态读 /session/current.json 与用户 summary.json，读完关掉。
+  if (msg.type === 'fetch-level') {
+    (async () => {
+      const tabs = await chrome.tabs.query({ url: 'https://linux.do/*' });
+      for (const tab of tabs) {
+        try { const r = await chrome.tabs.sendMessage(tab.id, { type: 'get-level-data' }); if (r && r.ok) { sendResponse(r); return; } } catch (e) {}
+      }
+      const res = await withHiddenTab('https://linux.do/', async tabId => {
+        try { return await chrome.tabs.sendMessage(tabId, { type: 'get-level-data' }); }
+        catch (e) { return { ok: false }; }
+      }, 25000, true);
+      if (res && res.ok) sendResponse(res);
+      else sendResponse({ ok: false, error: (res && res.error) || '没能读取等级数据，请确认已登录 linux.do' });
+    })();
     return true;
   }
   // LDC 链接自动取标题：后台拉一下页面，取 <title> 当名字。读不到就由调用方用域名兜底。
@@ -467,16 +557,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type !== 'fetch-topics') return;
-  // “最新”走 /latest.json（公开的）。/new.json 要登录，匿名直接 403，就是之前老报 403 的原因之一。
-  const url = msg.kind === 'new' ? 'https://linux.do/latest.json' : 'https://linux.do/top.json';
-  fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    .then(async r => {
+  (async () => {
+    // “最新”走 /latest.json（公开的）。/new.json 要登录，匿名直接 403，就是之前老报 403 的原因之一。
+    const url = msg.kind === 'new' ? 'https://linux.do/latest.json' : 'https://linux.do/top.json';
+    let directErr = '';
+    try {
+      const r = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { 'Accept': 'application/json' } });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const text = await r.text();
-      // Cloudflare 验证页是 HTML，不是 JSON，直接报出来，别当成“网络异常”糊弄
-      if (text.trim().startsWith('<')) throw new Error('Cloudflare 验证页（先打开 linux.do 首页过一次验证）');
-      sendResponse({ ok: true, data: JSON.parse(text) });
-    })
-    .catch(e => sendResponse({ ok: false, error: String(e.message || e) }));
+      if (text.trim().startsWith('<')) throw new Error('Cloudflare 验证页');
+      sendResponse({ ok: true, data: JSON.parse(text), via: 'fetch' });
+      return;
+    } catch (e) {
+      directErr = String(e.message || e);
+    }
+    // 没有打开的论坛页也能过：后台自动开一个不激活的 linux.do，等 CF 放行后取数并关闭。
+    const auto = await runAutoPassCF(msg.kind);
+    if (auto && auto.ok) sendResponse(auto);
+    else sendResponse({ ok: false, error: (auto && auto.error) || directErr });
+  })();
   return true; // 异步回复
 });

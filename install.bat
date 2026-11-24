@@ -1,13 +1,34 @@
 @echo off
 setlocal EnableExtensions
-set "DIR=%USERPROFILE%\linuxdo-lite"
-set "ZIP=%DIR%\linuxdo-lite.zip"
+set "DEFAULT_DIR=%USERPROFILE%\linuxdo-lite"
+set "DIR=%DEFAULT_DIR%"
 set "URL=https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip"
+set "EXISTING="
+set "UPDATE_MODE="
+
 echo ==============================================
 echo  LinuxDo Lite Installer
 echo ==============================================
 echo.
-echo Downloading latest release to %DIR% ...
+
+rem Find the folder Chrome/Edge is already loading this extension from.
+rem Updating that exact folder keeps the extension ID, so settings / AI key survive.
+for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$hits=@(); $roots=@(($env:LOCALAPPDATA+'\Google\Chrome\User Data'),($env:LOCALAPPDATA+'\Microsoft\Edge\User Data'),($env:LOCALAPPDATA+'\Google\Chrome Beta\User Data'),($env:LOCALAPPDATA+'\Microsoft\Edge Beta\User Data')); foreach($r in $roots){ if(Test-Path $r){ Get-ChildItem $r -Directory -ErrorAction SilentlyContinue | ForEach-Object { foreach($f in @('Secure Preferences','Preferences')){ $p=Join-Path $_.FullName $f; if(Test-Path $p){ try{ $j=ConvertFrom-Json ([IO.File]::ReadAllText($p)); if($j.extensions -and $j.extensions.settings){ foreach($prop in $j.extensions.settings.PSObject.Properties){ $e=$prop.Value; if($e.location -eq 4 -and $e.path -and (Test-Path (Join-Path $e.path 'manifest.json'))){ $n=''; if($e.manifest -and $e.manifest.name){$n=$e.manifest.name}; if(($n -like '*LinuxDo*') -or ($e.path -like '*linuxdo-lite*')){ $hits += $e.path } } } } }catch{} } } } } }; $hits | Select-Object -Unique | Select-Object -First 1" 2^>nul`) do if not defined EXISTING set "EXISTING=%%P"
+
+if defined EXISTING (
+  set "DIR=%EXISTING%"
+  set "UPDATE_MODE=1"
+)
+set "ZIP=%DIR%\linuxdo-lite.zip"
+
+if defined UPDATE_MODE (
+  echo Found existing install at %DIR%
+  echo Updating it in place to keep your settings and data.
+) else (
+  echo No existing install found. Installing to %DIR%
+)
+echo.
+echo Downloading latest release...
 if not exist "%DIR%" mkdir "%DIR%"
 curl.exe -L -o "%ZIP%" "%URL%"
 if errorlevel 1 goto dl_fail
@@ -23,12 +44,24 @@ if not exist "%DIR%\manifest.json" goto unpack_fail
 echo.
 echo Installed to %DIR%
 echo.
+if defined UPDATE_MODE goto update_done
+
 echo Next steps in the extensions page:
 echo  1. Enable Developer mode
 echo  2. Click Load unpacked
 echo  3. Select %DIR%
 echo.
+echo Opening the extensions page ...
+goto open_browser
 
+:update_done
+echo Update done. In the extensions page click Reload on "LinuxDo Lite".
+echo Do NOT click Load unpacked again - a second copy starts with empty settings.
+echo.
+echo Opening the extensions page ...
+goto open_browser
+
+:open_browser
 set "CHROME="
 set "EDGE="
 call :find_browser
@@ -46,7 +79,7 @@ set "PROFILE="
 call :last_profile "%LOCALAPPDATA%\Google\Chrome\User Data"
 if defined PROFILE (
   echo Opening Chrome with your last used profile: %PROFILE%
-  echo Note: multiple profiles? Switch profile in Chrome, then Load unpacked again to install there.
+  echo Note: multiple profiles? Switch profile in Chrome, then Reload the extension there.
   start "" "%CHROME%" --profile-directory="%PROFILE%" "chrome://extensions/"
 ) else (
   echo Opening Chrome ...
@@ -59,7 +92,7 @@ set "PROFILE="
 call :last_profile "%LOCALAPPDATA%\Microsoft\Edge\User Data"
 if defined PROFILE (
   echo Opening Microsoft Edge with your last used profile: %PROFILE%
-  echo Note: multiple profiles? Switch profile in Edge, then Load unpacked again to install there.
+  echo Note: multiple profiles? Switch profile in Edge, then Reload the extension there.
   start "" "%EDGE%" --profile-directory="%PROFILE%" "edge://extensions/"
 ) else (
   echo Opening Microsoft Edge ...

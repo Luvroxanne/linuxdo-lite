@@ -5,7 +5,7 @@
 
 轻量、低内存的 Chrome / Edge 浏览器扩展，专为 [LINUX DO](https://linux.do) 打造：侧边栏刷帖、信任等级与 LDC 积分进度、多套摸鱼/IM 外观、自动读帖、AI 速读与全场景屏蔽过滤。
 
-当前版本：v1.7.2
+当前版本：v1.7.3
 
 ## 下载与安装
 
@@ -20,8 +20,8 @@
 ### 双击安装器（推荐，Windows）
 
 1. 打开 [install.bat](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.bat)，点右上角 Download raw file 图标下载，保存到任意位置（比如桌面）。
-2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开扩展页。安装器会自动识别 **Chrome / Edge**：两个都装了时优先打开正在运行的那个；有多个浏览器账号时直接打开你上次使用的配置文件，不会再卡在“谁在使用 Chrome”。要装到另一个账号，先在浏览器右上角切换配置文件，再点一次“加载已解压的扩展程序”。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
-3. 在扩展页开启开发者模式，点“加载已解压的扩展程序”，选 `%USERPROFILE%\linuxdo-lite` 文件夹即可。以后更新再双击一次这个 bat 就行，设置不会丢。
+2. 双击 `install.bat`，它会自动下载最新版、解压到原扩展目录，并自动打开扩展页。安装器会先查找 Chrome / Edge 里**已经加载的 LinuxDo Lite 目录并原地覆盖**（配置、AI Key、扩展 ID 都不会变）；找不到才装到 `%USERPROFILE%\linuxdo-lite`。它还会自动识别 **Chrome / Edge**：两个都装了时优先打开正在运行的那个；有多个浏览器账号时直接打开你上次使用的配置文件，不会再卡在“谁在使用 Chrome”。要装到另一个账号，先在浏览器右上角切换配置文件，再点一次“加载已解压的扩展程序”。安装器是纯英文的，特意避开了 cmd 的中文乱码问题。
+3. 首次安装：在扩展页开启开发者模式，点“加载已解压的扩展程序”，选安装器打印的目录。之后更新再双击一次 bat 即可，安装器会原地覆盖，最后在扩展页点一下刷新 ↻，设置和 AI Key 都不会丢。
 
 ### 安装（30 秒）
 
@@ -51,8 +51,8 @@ mkdir -p ~/linuxdo-lite && curl -fsSL "https://github.com/Luvroxanne/linuxdo-lit
 
 ## 核心功能
 
-- **侧边栏看帖与已读隐藏**：支持最热/最新切换、收藏夹、自动隐藏已读帖子，以及被 Cloudflare 拦截时的后台静默过验证（带 3 分钟冷却，可在设置关闭）。
-- **等级与 LDC 积分看板**：展示当前信任等级、Connect 近 100 天进度、LDC 可用余额与自定义快捷链接，访问过 `connect.linux.do` / `credit.linux.do` 时自动静默缓存，绝不自动弹窗。
+- **侧边栏看帖与已读隐藏**：支持最热/最新切换、收藏夹、自动隐藏已读帖子。被 Cloudflare 拦截时会自动开一个不激活的后台页过验证，取完即关；只打开插件、不打开 L 站也能刷新列表。
+- **等级与 LDC 积分看板**：打开等级页自动同步成员信息、Connect 近 100 天进度和 LDC 可用余额，无需手动刷新，也不用先打开 `connect.linux.do` / `credit.linux.do`；首次同步会自动开一个后台页过 Cloudflare。上次结果会缓存，下次打开先秒显再更新。
 - **ReadBoost 自动读帖**：原样集成 [LINUXDO ReadBoost v2.2](https://greasyfork.org/zh-CN/scripts/519843-linuxdo-readboost)（作者 Do），支持帖子页顶栏 `▶`/`⏹` 及侧边栏一键启停与参数配置。
 - **外观主题与摸鱼增强**：支持默认原版、钉钉/飞书/企微 IM（原样集成 [czm15053/linuxdo-idea-ui](https://github.com/czm15053/linuxdo-idea-ui) v1.3.7，MIT）、暗黑、护眼绿、摸鱼灰；提供老板键 `Alt+M`、隐私模式、只看楼主、楼层号、快捷回复与全场景用户/关键词屏蔽。
 - **AI 速读（v1.7 重做）**：在任意 linux.do 帖子页点右下角 **AI 速读**（或按 `Alt+S`）直接弹出速读卡，侧边栏也有入口。自动抓取标题、楼主正文和前 20 楼评论，长帖先分段速读再汇总；结果流式输出、Markdown 排版，给出「一句话结论 / 核心要点 / 讨论与分歧 / 值不值得读」。支持速读与深度两种风格，同一帖 7 天内命中本地缓存秒开，可复制、停止和重新生成。接口支持任意 OpenAI 兼容服务（OpenAI / DeepSeek / 本地反代），API Key 仅保存在本地并同步备份至 `chrome.storage.sync`。

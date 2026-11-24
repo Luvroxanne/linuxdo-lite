@@ -108,13 +108,8 @@ const TL_SECTIONS = {
   1: [{ title: '活跃', items: [{ label: '访问天数', target: 15, v: s => s.days_visited }, { label: '浏览话题', target: 20, v: s => s.topics_entered }, { label: '已读帖子', target: 100, v: s => s.posts_read_count }] }, { title: '互动', items: [{ label: '给出赞', target: 1, v: s => s.likes_given }, { label: '获得赞', target: 1, v: s => s.likes_received }, { label: '回复话题', target: 3, approx: true, v: s => Math.max(0, (s.post_count || 0) - (s.topic_count || 0)) }, { label: '阅读时间', target: 60, unit: '分钟', v: s => Math.floor((s.time_read || 0) / 60) }] }],
   2: [{ title: '活跃（近 100 天，参考）', items: [{ label: '访问天数', target: 50, approx: true, v: s => s.days_visited }, { label: '浏览话题', target: 500, approx: true, v: s => s.topics_entered }, { label: '浏览帖子', target: 20000, approx: true, v: s => s.posts_read_count }] }, { title: '互动', items: [{ label: '回复话题', target: 10, approx: true, v: s => Math.max(0, (s.post_count || 0) - (s.topic_count || 0)) }, { label: '点赞', target: 30, approx: true, v: s => s.likes_given }, { label: '获赞', target: 20, approx: true, v: s => s.likes_received }, { label: '浏览话题（全周期）', target: 200, v: s => s.topics_entered }, { label: '已读帖子（全周期）', target: 500, v: s => s.posts_read_count }] }]
 };
-async function fetchLevelData() {
-  const tabs = await chrome.tabs.query({ url: 'https://linux.do/*' });
-  for (const tab of tabs) {
-    try { const res = await chrome.tabs.sendMessage(tab.id, { type: 'get-level-data' }); if (res && res.ok) return res; } catch (e) {}
-  }
-  return { ok: false, error: '先打开 linux.do 登录，再点刷新' };
-}
+// 等级 / 成员信息：后台会自动复用打开的论坛页，没有就临时开一个后台页取数，读完关掉。
+// 所以只打开插件、不打开 L 站也能拿到用户名、信任等级和全周期统计。
 // 解析 connect.linux.do 的卡片：照抄上游 IM 的 parseConnectCard 做法。
 // 之前我的写法是全卡片里按标签找数字，标签带图标/空格就找不到，
 // 所以解析失败、静默退回全周期数，还显示“已达标”。
@@ -180,7 +175,15 @@ async function fetchLdcViaTab() {
 }
 async function renderLevel() {
   const el = $('level-body'); if (!el) return;
-  el.innerHTML = '加载中…';
+  let hadCache = false;
+  try {
+    const ch = (await chrome.storage.local.get('cache_level_html')).cache_level_html;
+    if (ch && ch.html) { el.innerHTML = ch.html; bindLevelActions(); hadCache = true; }
+  } catch (e) {}
+  if (!hadCache) el.innerHTML = '<div class="empty" style="padding:14px">正在自动同步等级 / LDC 数据…首次会自动开一个后台页面过 Cloudflare，约需几秒。</div>';
+  // 三个来源并行拉：等级、Connect、LDC 各自最多等到后台临时页面过验证，串行会太慢。
+  const levelPromise = chrome.runtime.sendMessage({ type: 'fetch-level' }).catch(e => ({ ok: false, error: String(e.message || e) }));
+  const ldcPromise = chrome.runtime.sendMessage({ type: 'fetch-ldc' }).catch(e => ({ ok: false, error: String(e.message || e) }));
   // 1) Connect 精确数（100 天窗口）：先后台 fetch，不行再读已打开的 Connect 页，最后回退本地缓存（不自动弹窗）
   let connect = null, connectErr = '';
   try { const r = await chrome.runtime.sendMessage({ type: 'fetch-connect' }); if (r && r.ok) connect = parseConnect(r.html); else connectErr = (r && r.error) || '后台未获取'; } catch (e) { connectErr = String(e.message || e); }
@@ -196,22 +199,24 @@ async function renderLevel() {
       if (!connect && cr.cache_level_connect && cr.cache_level_connect.data) connect = cr.cache_level_connect.data;
     } catch (e) {}
   }
-  const res = await fetchLevelData();
-  if (!res || !res.ok) { el.innerHTML = '<div class="empty">拉不到等级数据：' + (res && res.error || '未知') + '。先打开 linux.do 登录。</div>'; return; }
+  const res = await levelPromise;
+  if (!res || !res.ok) {
+    if (!hadCache) el.innerHTML = '<div class="empty">拉不到等级数据：' + (res && res.error || '未知') + '。请确认浏览器里已登录 linux.do；首次同步会自动过 Cloudflare。</div>';
+    else el.insertAdjacentHTML('afterbegin', '<div class="status-msg err" style="margin:0 0 6px">自动同步失败，显示上次缓存：' + (res && res.error || '未知') + '</div>');
+    return;
+  }
   const d = res.data, s = d.summary || {}, level = d.trust_level || 0;
   const read = await getRead();
   const today = Object.values(read).filter(x => new Date(x).toDateString() === new Date().toDateString()).length;
   // LDC：先后台调官方接口，不行再经已打开的 credit 页，最后回退本地缓存，并显示真实失败原因
   let ldcData = null, ldcErr = '', ldcFromCache = false;
-  try {
-    const lr = await chrome.runtime.sendMessage({ type: 'fetch-ldc' });
-    if (lr && lr.ok && lr.data) {
-      ldcData = lr.data.data || (lr.data.available_balance != null ? lr.data : null);
-      if (!ldcData) ldcErr = '接口返回格式变更';
-    } else if (lr && lr.error) {
-      ldcErr = lr.error;
-    }
-  } catch (e) { ldcErr = String(e.message || e); }
+  const lr = await ldcPromise;
+  if (lr && lr.ok && lr.data) {
+    ldcData = lr.data.data || (lr.data.available_balance != null ? lr.data : null);
+    if (!ldcData) ldcErr = '接口返回格式变更';
+  } else if (lr && lr.error) {
+    ldcErr = lr.error;
+  }
   if (!ldcData) { try { ldcData = await fetchLdcViaTab(); } catch (e) {} }
   if (ldcData) {
     chrome.storage.local.set({ cache_level_ldc: { data: ldcData, at: Date.now() } }).catch(() => {});
@@ -256,7 +261,7 @@ async function renderLevel() {
   const pill = exact ? (failing.length ? '未达到' : '已达标') : '未确认';
   const next = level >= 3 ? 'Lv3 保持中：不达标会降回 Lv2。' : (exact
     ? (failing.length ? `还差 ${failing.length} 项：${failing.map(f => f.label + ' ' + f.cur.toLocaleString() + '/' + f.target.toLocaleString()).join('，')}。` : '已达标，等每天凌晨 4 点统计。')
-    : `未同步到 Connect 100 天数据，当前显示全周期参考（打开 <a href="https://connect.linux.do" target="_blank">connect.linux.do</a> 登录后点刷新即可同步）。`);
+    : `未同步到 Connect 100 天数据，当前显示全周期参考（已自动尝试同步；若一直未同步，确认已登录 <a href="https://connect.linux.do" target="_blank">connect.linux.do</a>）。`);
   el.innerHTML = `
     <div class="lvl-wrap">
       <div class="card">
@@ -278,6 +283,11 @@ async function renderLevel() {
         <div class="status-msg" id="lvl-rb-msg"></div>
       </div>
     </div>`;
+  bindLevelActions();
+  try { await chrome.storage.local.set({ cache_level_html: { html: el.innerHTML, at: Date.now() } }); } catch (e) {}
+}
+
+function bindLevelActions() {
   const gl = $('lvl-go-latest'); if (gl) gl.onclick = () => chrome.tabs.create({ url: 'https://linux.do/latest' });
   const gt = $('lvl-go-top'); if (gt) gt.onclick = () => chrome.tabs.create({ url: 'https://linux.do/top' });
   const lrs = $('lvl-rb-start'); if (lrs) lrs.onclick = () => triggerReadBoost('start', $('lvl-rb-msg'));
