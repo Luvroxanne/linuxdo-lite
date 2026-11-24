@@ -669,12 +669,13 @@ function bindSettings() {
       el.addEventListener('input', saveOnInput);
     }
   });
-  const exp = $('set-export');
-  if (exp) exp.onclick = async () => {
+  function exportSettingsFile() {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
     a.href = url; a.download = 'linuxdo-lite-settings.json'; a.click(); URL.revokeObjectURL(url);
-  };
+  }
+  const exp = $('set-export');
+  if (exp) exp.onclick = exportSettingsFile;
   const imp = $('set-import'), file = $('set-import-file');
   if (imp && file) {
     imp.onclick = () => file.click();
@@ -711,7 +712,10 @@ function bindSettings() {
   let latestDownloadUrl = '';
   if (dlUpdBtn) {
     dlUpdBtn.onclick = () => {
-      if (latestDownloadUrl) chrome.tabs.create({ url: latestDownloadUrl });
+      if (!latestDownloadUrl) return;
+      // 手动解压到新文件夹会换扩展 ID，先自动导出一份设置备份，装完可一键导入。
+      try { exportSettingsFile(); } catch (e) {}
+      chrome.tabs.create({ url: latestDownloadUrl });
     };
   }
   if (chkUpdBtn) {
@@ -731,8 +735,8 @@ function bindSettings() {
           }
           if (updStat) {
             updStat.textContent = sourceZip
-              ? '发现新版本 v' + r.latestVersion + '（Releases 暂时不可用）：将下载 linuxdo-lite-main.zip 源码包，解压后要选内层 linuxdo-lite-main 文件夹。'
-              : '发现新版本 v' + r.latestVersion + '：将下载 linuxdo-lite.zip，解压覆盖原目录后到扩展页点刷新，设置不会丢。';
+              ? '新版本 v' + r.latestVersion + ' 的 Release 包暂不可用。建议直接双击 install.bat 更新（会原地覆盖，配置不丢）；源码包解压后要选内层 linuxdo-lite-main 文件夹。'
+              : '发现新版本 v' + r.latestVersion + '：下载的是 linuxdo-lite.zip。点下载时会自动导出一份设置备份；装完覆盖原目录并点刷新，配置不会丢。';
           }
           showToast('发现新版本 v' + r.latestVersion);
         } else {
@@ -740,7 +744,7 @@ function bindSettings() {
           showToast('已是最新版本');
         }
       } catch (e) {
-        const msg = '检查失败：' + (e.message || e);
+        const msg = '检查失败：' + (e.message || e) + '。可开代理后重试，或直接双击 install.bat 更新。';
         if (updStat) updStat.textContent = msg;
         showToast(msg);
       }

@@ -141,7 +141,11 @@ function compareSemver(a, b) {
 async function checkExtensionUpdate() {
   const currentVersion = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '0.0.0';
   const relUrl = `https://api.github.com/repos/${EXT_REPO}/releases/latest`;
-  const rawUrl = `https://raw.githubusercontent.com/${EXT_REPO}/main/manifest.json`;
+  const manifestUrls = [
+    `https://fastly.jsdelivr.net/gh/${EXT_REPO}@main/manifest.json`,
+    `https://cdn.jsdelivr.net/gh/${EXT_REPO}@main/manifest.json`,
+    `https://raw.githubusercontent.com/${EXT_REPO}/main/manifest.json`
+  ];
   const repoUrl = `https://github.com/${EXT_REPO}`;
   let latestVersion = '';
   let downloadUrl = `${repoUrl}/releases/latest`;
@@ -168,10 +172,19 @@ async function checkExtensionUpdate() {
 
   if (!latestVersion) {
     source = 'manifest';
-    const r2 = await fetch(rawUrl, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-    if (!r2.ok) throw new Error('无法连接 GitHub（HTTP ' + r2.status + '）');
-    const j2 = await r2.json();
-    latestVersion = String(j2.version || '').replace(/^v/i, '');
+    // api.github.com 在部分网络下会 Failed to fetch；再试 jsDelivr 与 raw，
+    // 只要能读到 main 的 manifest.json 就还能给出正确版本号。
+    let lastErr = '';
+    for (const manifestUrl of manifestUrls) {
+      try {
+        const r2 = await fetch(manifestUrl, { cache: 'no-store', headers: { Accept: 'application/json' } });
+        if (!r2.ok) { lastErr = 'HTTP ' + r2.status; continue; }
+        const j2 = await r2.json();
+        const v = String(j2.version || '').replace(/^v/i, '');
+        if (v) { latestVersion = v; break; }
+      } catch (e) { lastErr = String(e.message || e); }
+    }
+    if (!latestVersion) throw new Error('连不上 GitHub：' + (lastErr || '网络错误') + '。可开代理后重试，或直接运行 install.bat 更新');
     // Releases API 被限流/被墙时，先确认对应标签的 Release 包是否存在：
     // 存在就下 linuxdo-lite.zip；只有真的没有 Release 才退到 main 源码包。
     const zipUrl = `${repoUrl}/releases/download/v${latestVersion}/linuxdo-lite.zip`;
@@ -180,7 +193,14 @@ async function checkExtensionUpdate() {
       const h = await fetch(zipUrl, { method: 'HEAD', cache: 'no-store' });
       hasZip = !!(h && h.ok);
     } catch (e) {}
-    if (hasZip || !latestVersion) {
+    if (!hasZip) {
+      // 标签附件探测失败时，再试一次“最新 Release”固定地址（文件名仍是 linuxdo-lite.zip）。
+      try {
+        const h2 = await fetch(`${repoUrl}/releases/latest/download/linuxdo-lite.zip`, { method: 'HEAD', cache: 'no-store' });
+        hasZip = !!(h2 && h2.ok);
+      } catch (e) {}
+    }
+    if (hasZip) {
       downloadUrl = zipUrl;
       downloadKind = 'release';
     } else {

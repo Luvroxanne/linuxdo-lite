@@ -61,7 +61,12 @@
     "http://localhost/*",
     "https://ldcstore.com/*",
     "https://hub.linux.do/*",
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://github.com/*",
+    "https://release-assets.githubusercontent.com/*",
+    "https://objects.githubusercontent.com/*",
+    "https://cdn.jsdelivr.net/*",
+    "https://fastly.jsdelivr.net/*"
   ],
   "icons": {
     "128": "icons/icon128.png",
@@ -78,7 +83,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "version": "1.7.3",
+  "version": "1.7.4",
   "web_accessible_resources": [
     {
       "matches": [

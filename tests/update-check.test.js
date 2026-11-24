@@ -46,6 +46,9 @@ async function runTests() {
   // 1. manifest.json 资源完整性校验
   assert.ok(/^\d+\.\d+\.\d+$/.test(manifest.version), 'manifest.version 应为三段式版本号');
   assert.ok(manifest.host_permissions.includes('https://api.github.com/*'), '缺少 api.github.com 权限');
+  for (const host of ['https://github.com/*', 'https://release-assets.githubusercontent.com/*', 'https://cdn.jsdelivr.net/*', 'https://fastly.jsdelivr.net/*']) {
+    assert.ok(manifest.host_permissions.includes(host), '缺少更新检查权限: ' + host);
+  }
   const requiredFiles = [
     manifest.background.service_worker,
     manifest.action.default_popup,
@@ -138,7 +141,22 @@ async function runTests() {
   assert.ok(res4.downloadUrl.endsWith('/releases/download/v1.6.16/linuxdo-lite.zip'), '应返回固定附件名 linuxdo-lite.zip');
   console.log('[PASS] 6. API 失败时仍定位 Release 同名 ZIP');
 
-  console.log('\nALL 6 TESTS PASSED');
+  // 7. GitHub API 与 raw 都连不上时，用 jsDelivr 读版本号，仍下载 Release 包
+  const env5 = createBgSandbox(async (url, init) => {
+    if (url.includes('/releases/latest')) throw new Error('Failed to fetch');
+    if (url.includes('jsdelivr.net')) return { ok: true, status: 200, json: async () => ({ version: '1.6.16' }) };
+    if (url.includes('/releases/download/v1.6.16/linuxdo-lite.zip')) return { ok: true, status: 200 };
+    throw new Error('Unexpected URL: ' + url);
+  }, '1.6.15');
+  const res5 = await env5.sendMessage({ type: 'check-ext-update' });
+  assert.strictEqual(res5.ok, true);
+  assert.strictEqual(res5.source, 'manifest');
+  assert.strictEqual(res5.latestVersion, '1.6.16');
+  assert.strictEqual(res5.downloadKind, 'release');
+  assert.ok(res5.downloadUrl.endsWith('/releases/download/v1.6.16/linuxdo-lite.zip'));
+  console.log('[PASS] 7. API 被墙时走 jsDelivr 仍下载同名 ZIP');
+
+  console.log('\nALL 7 TESTS PASSED');
 }
 
 runTests().catch(err => {
