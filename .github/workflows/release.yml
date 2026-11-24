@@ -1,0 +1,44 @@
+name: Build & Release LinuxDo Lite
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version from manifest.json
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Run automated tests
+        run: node tests/update-check.test.js
+
+      - name: Package Chrome extension zip
+        run: |
+          mkdir -p build
+          zip -r -9 build/linuxdo-lite.zip \
+            manifest.json background.js content.js content.css \
+            popup.html popup.css popup.js sidepanel.html \
+            same-origin-fetch.js upstream-loader.js README.md \
+            icons/ upstream/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: LinuxDo 看帖 Lite ${{ steps.meta.outputs.tag }}
+          files: build/linuxdo-lite.zip
+          generate_release_notes: true

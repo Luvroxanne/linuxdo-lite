@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>LinuxDo 看帖 - 侧边栏</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body class="is-sidepanel">
+<div class="nav">
+  <button id="nav-posts" class="active">帖子</button>
+  <button id="nav-level">等级</button>
+  <button id="nav-favs">收藏</button>
+  <button id="nav-settings">设置</button>
+</div>
+
+<section id="view-posts">
+  <header>
+    <div class="tabs">
+      <button id="tab-top" class="active">最热</button>
+      <button id="tab-new">最新</button>
+    </div>
+    <div class="header-actions">
+      <button id="ai-summary-btn" class="btn-ghost" title="AI 总结当前帖子">AI 总结</button>
+      <button id="open-site" class="btn-ghost">论坛</button>
+      <button id="refresh" class="btn-icon" title="刷新">↻</button>
+    </div>
+  </header>
+  <div id="status"></div>
+  <div id="read-bar"></div>
+  <div id="ai-summary-result" hidden></div>
+  <div id="list"></div>
+  <footer>
+    <span id="time"></span>
+  </footer>
+</section>
+
+<section id="view-level" hidden>
+  <div id="level-body"></div>
+  <div style="padding:0 10px 14px">
+    <div class="btns" style="margin-top:0"><button id="level-refresh">刷新等级</button></div>
+  </div>
+</section>
+
+<section id="view-favs" hidden>
+  <div id="fav-list"></div>
+  <p class="empty" id="fav-empty">暂无收藏</p>
+</section>
+
+<section id="view-settings" hidden>
+  <div class="set">
+    <details open>
+      <summary>外观主题</summary>
+      <div class="theme-grid" id="theme-grid">
+        <button type="button" class="theme-pill" data-theme="default"><i class="theme-dot" style="background:#ffffff"></i>默认原版</button>
+        <button type="button" class="theme-pill" data-theme="dingtalk"><i class="theme-dot" style="background:linear-gradient(135deg,#0089ff,#5b5bd6)"></i>钉钉 IM</button>
+        <button type="button" class="theme-pill" data-theme="feishu"><i class="theme-dot" style="background:#3370ff"></i>飞书 IM</button>
+        <button type="button" class="theme-pill" data-theme="wecom"><i class="theme-dot" style="background:#2b7dfb"></i>企微 IM</button>
+        <button type="button" class="theme-pill" data-theme="dark"><i class="theme-dot" style="background:#181818"></i>暗黑</button>
+        <button type="button" class="theme-pill" data-theme="eye"><i class="theme-dot" style="background:#c7e8c7"></i>护眼绿</button>
+        <button type="button" class="theme-pill" data-theme="moyu"><i class="theme-dot" style="background:#9ca3af"></i>摸鱼灰</button>
+      </div>
+      <select id="set-theme" hidden>
+        <option value="default">默认</option>
+        <option value="dingtalk">钉钉</option>
+        <option value="feishu">飞书</option>
+        <option value="wecom">企业微信</option>
+        <option value="dark">暗黑</option>
+        <option value="eye">护眼绿</option>
+        <option value="moyu">摸鱼灰</option>
+      </select>
+      <div class="btns" style="margin-top:4px"><button id="set-update-upstream">检查 IM 上游更新</button></div>
+      <div class="status-msg" id="upstream-version"></div>
+    </details>
+
+    <details open>
+      <summary>ReadBoost 自动读帖</summary>
+      <div class="switch-list">
+        <label class="switch-row"><span>启用自动读帖</span><input type="checkbox" id="set-readBoost"></label>
+      </div>
+      <div class="btns">
+        <button id="rb-start" class="primary">开始执行</button>
+        <button id="rb-stop" class="danger">停止</button>
+        <button id="rb-settings">参数设置</button>
+      </div>
+      <div class="status-msg" id="rb-status"></div>
+    </details>
+
+    <details open>
+      <summary>阅读与增强</summary>
+      <div class="switch-list">
+        <label class="switch-row"><span>点图标直接开侧边栏</span><input type="checkbox" id="set-openSidebarOnClick"></label>
+        <label class="switch-row"><span>被 CF 拦截时后台自动过验证</span><input type="checkbox" id="set-autoCF"></label>
+        <label class="switch-row"><span>页内悬浮侧栏</span><input type="checkbox" id="set-floatSidebar"></label>
+        <label class="switch-row"><span>隐藏已读帖子</span><input type="checkbox" id="set-hideRead"></label>
+        <label class="switch-row"><span>新标签页打开帖子</span><input type="checkbox" id="set-newTab"></label>
+        <label class="switch-row"><span>显示创建时间</span><input type="checkbox" id="set-showTime"></label>
+        <label class="switch-row"><span>显示楼层号</span><input type="checkbox" id="set-showFloor"></label>
+        <label class="switch-row"><span>隐藏签名图</span><input type="checkbox" id="set-hideSignature"></label>
+        <label class="switch-row"><span>隐藏帖子图片</span><input type="checkbox" id="set-hideImages"></label>
+        <label class="switch-row"><span>老板键 Alt+M</span><input type="checkbox" id="set-bossKey"></label>
+        <label class="switch-row"><span>隐私模式</span><input type="checkbox" id="set-privacy"></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>屏蔽与快捷回复</summary>
+      <div class="field">
+        <div class="field-head"><span class="field-label">屏蔽用户</span></div>
+        <div class="chip-editor" data-target="set-blockUsers">
+          <div class="chip-list"></div>
+          <div class="chip-add">
+            <input type="text" placeholder="输入用户名，回车添加">
+            <button type="button">添加</button>
+          </div>
+        </div>
+        <textarea id="set-blockUsers" hidden></textarea>
+      </div>
+      <div class="field">
+        <div class="field-head"><span class="field-label">屏蔽关键词</span></div>
+        <div class="chip-editor" data-target="set-blockKeywords">
+          <div class="chip-list"></div>
+          <div class="chip-add">
+            <input type="text" placeholder="输入关键词，回车添加">
+            <button type="button">添加</button>
+          </div>
+        </div>
+        <textarea id="set-blockKeywords" hidden></textarea>
+      </div>
+      <div class="field">
+        <div class="field-head"><span class="field-label">快捷回复</span></div>
+        <div class="chip-editor" data-target="set-quickReplies">
+          <div class="chip-list"></div>
+          <div class="chip-add">
+            <input type="text" placeholder="输入常用回复，回车添加">
+            <button type="button">添加</button>
+          </div>
+        </div>
+        <textarea id="set-quickReplies" hidden></textarea>
+      </div>
+    </details>
+
+    <details>
+      <summary>LDC 快捷链接</summary>
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">名称与网址</span>
+          <button type="button" class="field-action" id="set-ldcLinks-titles">自动补全标题</button>
+        </div>
+        <div class="link-rows" id="ldc-link-rows"></div>
+        <div class="btns" style="margin-top:6px"><button type="button" id="ldc-link-add">+ 添加链接</button></div>
+        <textarea id="set-ldcLinks" hidden></textarea>
+      </div>
+    </details>
+
+    <details>
+      <summary>AI 总结</summary>
+      <div class="field">
+        <div class="field-head"><span class="field-label">接口地址</span></div>
+        <input id="set-aiBaseUrl" class="input" type="text" placeholder="https://api.openai.com/v1">
+      </div>
+      <div class="field">
+        <div class="field-head"><span class="field-label">模型</span></div>
+        <input id="set-aiModel" class="input" type="text" placeholder="gpt-4o-mini">
+      </div>
+      <div class="field">
+        <div class="field-head"><span class="field-label">API Key</span></div>
+        <input id="set-aiKey" class="input" type="password" placeholder="sk-...">
+      </div>
+      <select id="set-aiProvider" hidden><option value="openai">openai</option></select>
+      <div class="btns"><button id="set-test-ai" class="primary">测试连接</button></div>
+    </details>
+
+    <details open>
+      <summary>版本与更新</summary>
+      <div class="field-head" style="margin-top:2px">
+        <span class="field-label">当前版本</span>
+        <span id="ext-cur-ver" style="font-size:12px;font-weight:600;color:var(--accent)">v1.6.15</span>
+      </div>
+      <div class="btns" style="margin-top:6px">
+        <button id="ext-check-update" class="primary">检查更新</button>
+        <button id="ext-download-update" hidden>下载新版 ZIP</button>
+      </div>
+      <div class="status-msg" id="ext-update-status"></div>
+    </details>
+
+    <details>
+      <summary>自定义 CSS 与备份</summary>
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">自定义样式</span>
+          <button type="button" class="field-action" id="set-customCSS-example">填入示例</button>
+        </div>
+        <textarea id="set-customCSS" class="code-box" placeholder=".topic-list { font-size: 15px; }"></textarea>
+      </div>
+      <div class="btns">
+        <button id="set-export">导出</button>
+        <button id="set-import">导入</button>
+        <button id="set-reset" class="danger">重置</button>
+      </div>
+      <input type="file" id="set-import-file" accept=".json" hidden>
+    </details>
+  </div>
+</section>
+<div id="set-saved"></div>
+<script src="popup.js"></script>
+</body>
+</html>

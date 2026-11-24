@@ -1,0 +1,48 @@
+/* LinuxDo 看帖 Lite - 论坛页样式：主题 / 摸鱼 / 楼层 / 只看楼主 */
+/* IM 外观灵感来自 czm15053/linuxdo-idea-ui（MIT）：钉钉 / 飞书 IM 三合一，只换皮不碰数据。
+   这里是本扩展自己写的简化实现，不是原脚本的复制：不重建 API、不改交互，只做 CSS + 布局 + 隐私替换。 */
+.ld-floor{position:absolute;top:8px;right:12px;background:#00aeff;color:#fff;font-size:12px;padding:2px 8px;border-radius:999px;z-index:5;pointer-events:none}
+.ld-time-badge{display:inline-block;margin-left:6px;font-size:11px;color:#888;background:#f0f0f0;padding:1px 6px;border-radius:999px;vertical-align:middle}
+#ld-top-btn{position:fixed;right:18px;bottom:18px;z-index:9999;width:44px;height:44px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:18px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+#ld-op-btn{position:fixed;right:18px;bottom:72px;z-index:9999;border:1px solid #00aeff;background:#fff;color:#00aeff;border-radius:999px;padding:8px 12px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+#ld-op-btn.on{background:#00aeff;color:#fff}
+#ld-qr-bar{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+#ld-qr-bar button{border:1px solid #ddd;background:#f7f7f7;border-radius:999px;padding:4px 10px;cursor:pointer;font-size:12px}
+html.ld-hide-sig .signature,html.ld-hide-sig .user-signature{display:none!important}
+html.ld-hide-img .cooked img,html.ld-hide-img .topic-body img{display:none!important}
+html.ld-theme-dark body,html.ld-theme-dark #main-outlet{background:#181818!important;color:#ddd!important}
+html.ld-theme-dark a{color:#7cc7ff!important}
+html.ld-theme-eye body,html.ld-theme-eye #main-outlet{background:#e6f4e6!important}
+html.ld-theme-moyu{filter:grayscale(.75) contrast(.92)}
+html.ld-theme-moyu .avatar,html.ld-theme-moyu .topic-list .avatar{display:none!important}
+html.ld-theme-moyu body{font-size:13px!important}
+#ld-moyu-overlay{position:fixed;inset:0;z-index:2147483647;background:#fff;color:#222;font:14px/1.6 system-ui,sans-serif;overflow:auto}
+#ld-moyu-overlay table{border-collapse:collapse;width:100%;font-size:13px}
+#ld-moyu-overlay th,#ld-moyu-overlay td{border:1px solid #d0d7de;padding:6px 10px;text-align:left}
+#ld-moyu-overlay th{background:#f6f8fa}
+#ld-moyu-overlay .bar{background:#217346;color:#fff;padding:8px 14px;font-weight:600}
+
+/* ===== 隐私模式：头像变文字圆点，标题变工作标题（JS 替换，CSS 兜底） ===== */
+html.ld-privacy img.avatar,html.ld-privacy .avatar img{display:none!important}
+.ld-privacy-avatar{display:inline-flex!important;width:32px;height:32px;border-radius:50%;background:#3370ff;color:#fff;align-items:center;justify-content:center;font-size:14px;font-weight:600;vertical-align:middle}
+#ld-search-overlay{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;justify-content:center;padding-top:12vh}
+#ld-search-box{width:min(560px,90vw);height:fit-content;background:#fff;border-radius:14px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#ld-search-box input{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:15px;box-sizing:border-box}
+#ld-search-box .res{margin-top:10px;max-height:50vh;overflow:auto}
+#ld-search-box .res a{display:block;padding:8px;border-bottom:1px solid #f0f0f0;text-decoration:none;color:#222}
+/* ===== 页内悬浮侧栏：进站自动出现，收起后只剩小圆钮 ===== */
+#ld-float-sidebar{position:fixed;right:12px;top:70px;width:320px;max-height:75vh;z-index:9997;background:#fff;border:1px solid #ddd;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;overflow:hidden;font:14px/1.5 system-ui,sans-serif}
+#ld-float-sidebar .ld-float-head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #eee;background:#f7fbff}
+#ld-float-sidebar .ld-float-head button{border:1px solid #ddd;background:#fff;border-radius:999px;padding:3px 10px;cursor:pointer;font-size:12px}
+#ld-float-sidebar .ld-float-head button.on{background:#00aeff;color:#fff;border-color:#00aeff}
+#ld-float-sidebar .ld-float-list{overflow:auto;padding:4px 0}
+#ld-float-sidebar .ld-float-item{display:block;padding:8px 12px;border-bottom:1px solid #f5f5f5;text-decoration:none;color:#222}
+#ld-float-sidebar .ld-float-item:hover{background:#f7fbff}
+#ld-float-sidebar .ld-float-item .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#ld-float-sidebar .ld-float-item .m{font-size:12px;color:#888;margin-top:2px}
+#ld-float-sidebar .ld-float-foot{padding:6px 12px;font-size:11px;color:#aaa;border-top:1px solid #eee}
+#ld-float-btn{position:fixed;right:12px;bottom:130px;z-index:10001;width:48px;height:48px;border-radius:50%;border:1px solid #00aeff;background:#00aeff;color:#fff;cursor:pointer;font-size:14px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,.2);display:none}
+#ld-float-sidebar{z-index:10000}
+html.ld-theme-dingtalk #ld-float-sidebar,html.ld-theme-feishu #ld-float-sidebar{display:flex!important}
+html.ld-theme-dingtalk #ld-float-btn,html.ld-theme-feishu #ld-float-btn{z-index:10001}
+@media (max-width:900px){#ld-float-sidebar{width:280px}}

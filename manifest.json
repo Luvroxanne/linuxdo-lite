@@ -1,0 +1,93 @@
+{
+  "action": {
+    "default_icon": {
+      "128": "icons/icon128.png",
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    },
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "matches": [
+        "https://linux.do/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "all_frames": false,
+      "exclude_matches": [
+        "https://linux.do/pub/*"
+      ],
+      "js": [
+        "upstream-loader.js"
+      ],
+      "matches": [
+        "https://linux.do/*"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "js": [
+        "same-origin-fetch.js"
+      ],
+      "matches": [
+        "https://connect.linux.do/*",
+        "https://credit.linux.do/*"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "description": "看帖 + 论坛增强 + 自动读帖。IM 外观原样引用 czm15053/linuxdo-idea-ui（MIT，v1.3.7），自动读帖原样引用 LINUXDO ReadBoost（v2.2）。",
+  "host_permissions": [
+    "https://linux.do/*",
+    "https://raw.githubusercontent.com/*",
+    "https://connect.linux.do/*",
+    "https://credit.linux.do/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://ldcstore.com/*",
+    "https://hub.linux.do/*",
+    "https://api.github.com/*"
+  ],
+  "icons": {
+    "128": "icons/icon128.png",
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png"
+  },
+  "manifest_version": 3,
+  "name": "LinuxDo 看帖 Lite",
+  "permissions": [
+    "storage",
+    "tabs",
+    "sidePanel"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "version": "1.6.15",
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "https://linux.do/*"
+      ],
+      "resources": [
+        "upstream/linuxdo-im.user.js",
+        "upstream/linuxdo-readboost.user.js",
+        "upstream/gm-readboost-shim.js"
+      ]
+    }
+  ]
+}
