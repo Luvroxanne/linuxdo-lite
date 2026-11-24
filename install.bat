@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions
 set "DEFAULT_DIR=%USERPROFILE%\linuxdo-lite"
 set "DIR=%DEFAULT_DIR%"
@@ -7,19 +8,17 @@ set "EXISTING="
 set "UPDATE_MODE="
 
 echo ==============================================
-echo  LinuxDo Lite Installer
+echo  LinuxDo Lite 安装器
 echo ==============================================
 echo.
 
-rem Find the folder Chrome/Edge is already loading this extension from.
-rem Updating that exact folder keeps the extension ID, so settings / AI key survive.
+rem 查找浏览器里已经加载的 LinuxDo Lite 目录；原地更新才能保留扩展 ID 和配置。
 for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$hits=@(); $roots=@(($env:LOCALAPPDATA+'\Google\Chrome\User Data'),($env:LOCALAPPDATA+'\Microsoft\Edge\User Data'),($env:LOCALAPPDATA+'\Google\Chrome Beta\User Data'),($env:LOCALAPPDATA+'\Microsoft\Edge Beta\User Data')); foreach($r in $roots){ if(Test-Path $r){ Get-ChildItem $r -Directory -ErrorAction SilentlyContinue | ForEach-Object { foreach($f in @('Secure Preferences','Preferences')){ $p=Join-Path $_.FullName $f; if(Test-Path $p){ try{ $j=ConvertFrom-Json ([IO.File]::ReadAllText($p)); if($j.extensions -and $j.extensions.settings){ foreach($prop in $j.extensions.settings.PSObject.Properties){ $e=$prop.Value; if($e.location -eq 4 -and $e.path -and (Test-Path (Join-Path $e.path 'manifest.json'))){ $n=''; if($e.manifest -and $e.manifest.name){$n=$e.manifest.name}; if(($n -like '*LinuxDo*') -or ($e.path -like '*linuxdo-lite*')){ $hits += $e.path } } } } }catch{} } } } } }; $hits | Select-Object -Unique | Select-Object -First 1" 2^>nul`) do if not defined EXISTING set "EXISTING=%%P"
 
 if defined EXISTING set "DIR=%EXISTING%"
 if defined EXISTING set "UPDATE_MODE=1"
 
-rem Prefer a zip you already downloaded: drag it onto this bat, or keep it next to the bat,
-rem in the current folder, or as linuxdo-lite*.zip under Downloads.
+rem 优先用你已经下载的 zip：拖到 bat 上、放在 bat 同目录、当前目录，或 Downloads 下的 linuxdo-lite*.zip。
 set "USING_LOCAL="
 set "DOWNLOADED="
 set "LOCAL_ZIP="
@@ -29,12 +28,12 @@ if not defined LOCAL_ZIP for /f "delims=" %%Z in ('dir /b /o-d "%CD%\linuxdo-lit
 if not defined LOCAL_ZIP for /f "delims=" %%Z in ('dir /b /o-d "%USERPROFILE%\Downloads\linuxdo-lite*.zip" 2^>nul') do if not defined LOCAL_ZIP set "LOCAL_ZIP=%USERPROFILE%\Downloads\%%Z"
 
 if not defined UPDATE_MODE goto install_fresh
-echo Found existing install at "%DIR%"
-echo Updating it in place to keep your settings and data.
-echo If chrome://extensions shows more than one LinuxDo Lite, remove the old/broken copy.
+echo 已找到现有安装："%DIR%"
+echo 将原地覆盖更新，配置和 AI Key 都会保留。
+echo 如果扩展页里有多个 LinuxDo Lite，请删除旧的或报错的那个。
 goto install_msg_done
 :install_fresh
-echo No existing install found. Installing to "%DIR%"
+echo 没有找到现有安装，将安装到："%DIR%"
 :install_msg_done
 echo.
 if not exist "%DIR%" mkdir "%DIR%"
@@ -43,24 +42,24 @@ if not defined LOCAL_ZIP goto download
 set "ZIP=%LOCAL_ZIP%"
 tar -tf "%ZIP%" 2>nul | findstr /i /c:"manifest.json" >nul
 if errorlevel 1 goto local_bad
-echo Using local package: "%ZIP%"
-echo Skipping download.
+echo 使用本地安装包："%ZIP%"
+echo 跳过下载。
 set "USING_LOCAL=1"
 call :extract_zip
 if exist "%DIR%\manifest.json" goto unpack_ok
 :local_bad
-echo Local zip is invalid or incomplete. Downloading instead...
+echo 本地 zip 无效或不完整，改为联网下载……
 set "LOCAL_ZIP="
 set "USING_LOCAL="
 
 :download
 set "ZIP=%DIR%\linuxdo-lite.zip"
-echo Downloading latest release...
+echo 正在下载最新版……
 curl.exe -L --fail --retry 2 --connect-timeout 15 -o "%ZIP%" "%URL%"
 if errorlevel 1 goto dl_fail
 if not exist "%ZIP%" goto dl_fail
 set "DOWNLOADED=1"
-echo Download OK. Extracting...
+echo 下载完成，正在解压……
 call :extract_zip
 if not exist "%DIR%\manifest.json" goto unpack_fail
 
@@ -68,23 +67,23 @@ if not exist "%DIR%\manifest.json" goto unpack_fail
 if defined DOWNLOADED del "%ZIP%" >nul 2>&1
 if not exist "%DIR%\manifest.json" goto unpack_fail
 echo.
-echo Installed to %DIR%
+echo 已安装到 %DIR%
 echo.
 if defined UPDATE_MODE goto update_done
 
-echo Next steps in the extensions page:
-echo  1. Enable Developer mode
-echo  2. Click Load unpacked
-echo  3. Select %DIR%
+echo 接下来在扩展页里：
+echo  1. 打开右上角“开发者模式”
+echo  2. 点“加载已解压的扩展程序”
+echo  3. 选择 %DIR%
 echo.
-echo Opening the extensions page ...
+echo 正在打开扩展页……
 goto open_browser
 
 :update_done
-echo Update done. In the extensions page click Reload on "LinuxDo Lite".
-echo Do NOT click Load unpacked again - a second copy starts with empty settings.
+echo 更新完成。请在扩展页对 “LinuxDo Lite” 点一次刷新按钮。
+echo 不要再点“加载已解压的扩展程序”，否则会多出一个空配置副本。
 echo.
-echo Opening the extensions page ...
+echo 正在打开扩展页……
 goto open_browser
 
 :open_browser
@@ -104,13 +103,13 @@ goto launch_manual
 set "PROFILE="
 call :last_profile "%LOCALAPPDATA%\Google\Chrome\User Data"
 if not defined PROFILE goto chrome_plain
-echo Opening Chrome with your last used profile: %PROFILE%
-echo Note: multiple profiles? Switch profile in Chrome, then Reload the extension there.
+echo 正在打开 Chrome（配置文件：%PROFILE%）
+echo 提示：有多个账号时，先在 Chrome 右上角切换配置文件，再刷新扩展。
 start "" "%CHROME%" --profile-directory="%PROFILE%" "chrome://extensions/"
 goto done
 
 :chrome_plain
-echo Opening Chrome ...
+echo 正在打开 Chrome……
 start "" "%CHROME%" "chrome://extensions/"
 goto done
 
@@ -118,18 +117,18 @@ goto done
 set "PROFILE="
 call :last_profile "%LOCALAPPDATA%\Microsoft\Edge\User Data"
 if not defined PROFILE goto edge_plain
-echo Opening Microsoft Edge with your last used profile: %PROFILE%
-echo Note: multiple profiles? Switch profile in Edge, then Reload the extension there.
+echo 正在打开 Microsoft Edge（配置文件：%PROFILE%）
+echo 提示：有多个账号时，先在 Edge 右上角切换配置文件，再刷新扩展。
 start "" "%EDGE%" --profile-directory="%PROFILE%" "edge://extensions/"
 goto done
 
 :edge_plain
-echo Opening Microsoft Edge ...
+echo 正在打开 Microsoft Edge……
 start "" "%EDGE%" "edge://extensions/"
 goto done
 
 :launch_manual
-echo Chrome / Edge not found. Open chrome://extensions/ or edge://extensions/ manually.
+echo 没有找到 Chrome 或 Edge，请手动打开 chrome://extensions/ 或 edge://extensions/
 goto done
 
 :find_browser
@@ -153,7 +152,7 @@ exit /b 0
 :extract_zip
 tar -xf "%ZIP%" -C "%DIR%"
 if exist "%DIR%\manifest.json" exit /b 0
-echo tar failed, trying PowerShell...
+echo tar 解压失败，改用 PowerShell 解压……
 powershell -NoProfile -Command "Expand-Archive -Force '%ZIP%' '%DIR%'"
 exit /b 0
 
@@ -163,15 +162,15 @@ pause
 exit /b 0
 :dl_fail
 echo.
-echo Download failed. If you already have the zip, put linuxdo-lite.zip next to this bat
-echo and double-click again; it will use that file instead of downloading.
+echo 下载失败。如果你已经有 zip，请把 linuxdo-lite.zip 放到 bat 旁边再双击一次，
+echo 安装器会直接使用本地包，不再联网下载。
 echo.
 pause
 exit /b 1
 :unpack_fail
 echo.
-echo Extract failed. manifest.json not found in %DIR%
-echo Delete %DIR% and double-click again.
+echo 解压失败：%DIR% 里没有 manifest.json
+echo 请删除该目录后重新双击 bat。
 echo.
 pause
 exit /b 1
