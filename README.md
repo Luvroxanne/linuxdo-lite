@@ -1,29 +1,38 @@
 # LinuxDo 看帖 Lite
 
-[![Download Latest Release](https://img.shields.io/badge/一键下载最新版-linuxdo--lite.zip-0ea5e9?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip)
+[![Download Latest Release](https://img.shields.io/badge/下载最新版-linuxdo--lite.zip-0ea5e9?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip)
 [![Releases](https://img.shields.io/github/v/release/Luvroxanne/linuxdo-lite?style=for-the-badge&label=版本)](https://github.com/Luvroxanne/linuxdo-lite/releases/latest)
 
 轻量、低内存的 Chrome / Edge 浏览器扩展，专为 [LINUX DO](https://linux.do) 打造：侧边栏刷帖、信任等级与 LDC 积分进度、多套摸鱼/IM 外观、自动读帖、AI 帖子总结与全场景屏蔽过滤。
 
-## 一键下载与安装
+当前版本：v1.6.15
 
-> 由于未上架 Chrome 网上应用店，浏览器安全策略要求通过“加载已解压的扩展程序”安装。点击上方蓝色按钮或下方链接即可直接下载最新构建包：
+## 下载与安装
 
-👉 **[点此一键下载最新版 `linuxdo-lite.zip`](https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip)**
+> 未上架 Chrome 网上应用店，Chrome 的安全策略不允许从 GitHub 点一下就装进浏览器。所以这里能做到的是“一键下载”，安装仍需手动“加载已解压的扩展程序”，30 秒，全程不用命令行。
 
-### 方式一：手动安装（30 秒）
-1. 点击上方链接下载 `linuxdo-lite.zip`，解压到一个**固定文件夹**（例如 `D:\linuxdo-lite`）。
+### 下载最新版
+
+👉 **[下载最新版 `linuxdo-lite.zip`](https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip)**
+
+备用下载（还没发新版、上面链接 404 时用）：[下载 main 分支源码 zip](https://github.com/Luvroxanne/linuxdo-lite/archive/refs/heads/main.zip)，解压后是 `linuxdo-lite-main` 文件夹，安装时选这个内层文件夹。
+
+### 安装（30 秒）
+
+1. 下载上面的 `linuxdo-lite.zip`，解压到一个**固定文件夹**（例如 `D:\linuxdo-lite`），之后不要移动、不要删除这个文件夹。
 2. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），开启右上角 **开发者模式**。
 3. 点击 **加载已解压的扩展程序**，选择刚才解压的文件夹即可。
 
-### 方式二：命令行一键下载 / 覆盖更新（保留全部本地设置）
+### 一键下载 / 覆盖更新（已装过之后用，保留全部本地设置）
 
 **Windows (PowerShell)：**
+
 ```powershell
 $dir="$env:USERPROFILE\linuxdo-lite"; New-Item -ItemType Directory -Force $dir | Out-Null; Invoke-WebRequest "https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip" -OutFile "$dir\pkg.zip"; Expand-Archive -Force "$dir\pkg.zip" $dir; Remove-Item "$dir\pkg.zip"; Write-Host "已更新到 $dir，请在 chrome://extensions/ 点击刷新按钮"
 ```
 
 **macOS / Linux：**
+
 ```bash
 mkdir -p ~/linuxdo-lite && curl -fsSL "https://github.com/Luvroxanne/linuxdo-lite/releases/latest/download/linuxdo-lite.zip" -o /tmp/linuxdo-lite.zip && unzip -oq /tmp/linuxdo-lite.zip -d ~/linuxdo-lite && rm -f /tmp/linuxdo-lite.zip && echo "已更新到 ~/linuxdo-lite，请在 chrome://extensions/ 点击刷新按钮"
 ```
@@ -51,3 +60,5 @@ node tests/update-check.test.js
 # 推送标签自动触发 GitHub Actions 打包并发布 Release
 git tag v1.6.15 && git push origin v1.6.15
 ```
+
+也可以在 GitHub 网页上发版：Actions → Build & Release LinuxDo Lite → Run workflow → Branch 选 main → Run workflow。
