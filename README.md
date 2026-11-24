@@ -17,6 +17,12 @@
 
 备用下载（还没发新版、上面链接 404 时用）：[下载 main 分支源码 zip](https://github.com/Luvroxanne/linuxdo-lite/archive/refs/heads/main.zip)，解压后是 `linuxdo-lite-main` 文件夹，安装时选这个内层文件夹。
 
+### 双击安装器（推荐，Windows）
+
+1. 打开 [install.bat](https://github.com/Luvroxanne/linuxdo-lite/blob/main/install.bat)，点右上角 Download raw file 图标下载，保存到任意位置（比如桌面）。
+2. 双击 `install.bat`，它会自动下载最新版、解压到 `%USERPROFILE%\linuxdo-lite`，并自动打开 `chrome://extensions/`。
+3. 在扩展页开启开发者模式，点“加载已解压的扩展程序”，选 `%USERPROFILE%\linuxdo-lite` 文件夹即可。以后更新再双击一次这个 bat 就行，设置不会丢。
+
 ### 安装（30 秒）
 
 1. 下载上面的 `linuxdo-lite.zip`，解压到一个**固定文件夹**（例如 `D:\linuxdo-lite`），之后不要移动、不要删除这个文件夹。
