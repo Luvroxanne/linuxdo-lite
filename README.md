@@ -63,6 +63,20 @@ mkdir -p ~/linuxdo-lite && curl -fsSL "https://github.com/Luvroxanne/linuxdo-lit
 - **外观主题与摸鱼增强**：支持默认原版、钉钉/飞书/企微 IM（原样集成 [czm15053/linuxdo-idea-ui](https://github.com/czm15053/linuxdo-idea-ui) v1.3.7，MIT）、暗黑、护眼绿、摸鱼灰；提供老板键 `Alt+M`、隐私模式、只看楼主、楼层号、快捷回复与全场景用户/关键词屏蔽。
 - **AI 速读（v1.7 重做）**：在任意 linux.do 帖子页点右下角 **AI 速读**（或按 `Alt+S`）直接弹出速读卡，侧边栏也有入口。自动抓取标题、楼主正文和前 20 楼评论，长帖先分段速读再汇总；结果流式输出、Markdown 排版，给出「一句话结论 / 核心要点 / 讨论与分歧 / 值不值得读」。支持速读与深度两种风格，同一帖 7 天内命中本地缓存秒开，可复制、停止和重新生成。接口支持任意 OpenAI 兼容服务（OpenAI / DeepSeek / 本地反代），API Key 仅保存在本地并同步备份至 `chrome.storage.sync`。
 
+## 界面预览
+
+### 侧边栏看帖
+
+![侧边栏看帖](docs/screenshots/sidebar.png)
+
+### 等级 / LDC
+
+![等级与 LDC](docs/screenshots/level.png)
+
+### 设置
+
+![设置页](docs/screenshots/settings.png)
+
 ## 本地测试与发版
 
 ```bash
