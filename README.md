@@ -84,7 +84,16 @@ mkdir -p ~/linuxdo-lite && curl -fsSL "https://github.com/Luvroxanne/linuxdo-lit
 node tests/update-check.test.js
 
 # 推送标签自动触发 GitHub Actions 打包并发布 Release
-git tag v1.7.0 && git push origin v1.7.0
+git tag v1.7.9 && git push origin v1.7.9
 ```
 
 也可以在 GitHub 网页上发版：Actions → Build & Release LinuxDo Lite → Run workflow → Branch 选 main → Run workflow。
+
+## 🙏 致谢
+
+感谢 [linux.do](https://linux.do/) 提供社区和测试环境，也感谢以下开源项目与作者：
+
+- [linuxdo-scripts](https://github.com/anghunk/linuxdo-scripts) - L 站增强扩展，本项目的部分交互与实现思路参考了它（Apache-2.0）。
+- [LINUXDO ReadBoost](https://greasyfork.org/zh-CN/scripts/519843-linuxdo-readboost) - 自动读帖脚本，作者 Do；本项目集成 v2.2，并修复了高级设置无法保持开启的问题。
+- [linuxdo-idea-ui](https://github.com/czm15053/linuxdo-idea-ui) - 飞书 / 钉钉 / 企微 IM 外观（MIT），本项目集成 v1.3.7，仅做扩展内的加载适配。
+- [Discourse](https://www.discourse.org/) - L 站使用的论坛系统，本项目的接口与页面适配基于它。
